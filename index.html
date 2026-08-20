@@ -496,7 +496,7 @@ function initMsal(){
     auth: {
       clientId: CLOUD.clientId,
       authority: 'https://login.microsoftonline.com/' + CLOUD.tenantId,
-      redirectUri: window.location.origin + window.location.pathname
+      redirectUri: 'https://littlepuddingssingin.github.io/otj/'
     },
     cache: { cacheLocation: 'localStorage' }
   });
@@ -523,7 +523,11 @@ async function cloudSignIn(){
     const res = await msalApp.loginPopup({ scopes: CLOUD.scopes, prompt: 'select_account' });
     cloudAccount = res.account;
     await afterSignIn(false);
-  } catch(e){ toast('Sign-in was cancelled or failed'); }
+  } catch(e){
+    const msg = (e && (e.errorMessage || e.message)) ? (e.errorMessage || e.message) : 'unknown error';
+    console.log('OTJ sign-in error:', msg);
+    toast('Sign-in problem: ' + msg.slice(0, 80));
+  }
 }
 
 async function getToken(){
