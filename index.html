@@ -232,6 +232,31 @@
       </div>
       <div class="row" style="margin-top:.7rem">
         <div class="wide">
+          <label for="editLegal">Name on the college form for <span id="editLegalName"></span></label>
+          <input id="editLegal" onchange="updateLegal(this.value)" placeholder="Leave blank to use the name above">
+          <div class="hint">Use this when the college has a different name on record, for example a legal first name where the apprentice goes by a middle name. The submitted BW3 8 4 uses this name; the screen keeps the preferred name.</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <div class="wide">
+          <label for="editEmail">Sign-in email for <span id="editEmailName"></span></label>
+          <input id="editEmail" type="email" onchange="updateEmail(this.value)" placeholder="e.g. chloe.everatt@groundedandcurious.co.uk">
+          <div class="hint">Their Little Puddings email. This links their sign-in to this record. You are not signing in for them; they still use their own password.</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <div class="wide">
+          <label>Setup link for <span id="editLinkName"></span></label>
+          <div class="hint">Send this link to the apprentice once. They tap it, sign in with their own account, and their record is set up with the name, hours and start date above. After that they use the normal address.</div>
+          <div style="display:flex;gap:.5rem;margin-top:.4rem;flex-wrap:wrap">
+            <input id="setupLink" readonly style="flex:1;min-width:200px;background:var(--pale)">
+            <button class="btn-gold" onclick="copySetupLink()">Copy link</button>
+          </div>
+          <div class="hint" id="setupLinkHint"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <div class="wide">
           <label for="editTarget">Planned OTJ hours for <span id="editTargetName"></span></label>
           <input id="editTarget" type="number" min="1" onchange="updateTarget(this.value)">
           <div class="hint">Minimum per apprenticeship is 187 hours, more is acceptable. Calculated at 6 hours for each week of learning, so confirm the planned figure with the college.</div>
@@ -632,19 +657,55 @@ function mergeInto(cloud){
 }
 
 /* an apprentice's file holds exactly their own record; bind session.appId to it */
+/* ---------- setup links ----------
+   The manager prepares an apprentice, then generates a personal link that carries
+   that apprentice's setup (preferred name, hours, start, and their email) encoded
+   in the URL. Nothing is stored in the public page. The apprentice taps the link
+   once, signs in, and their own OneDrive record is seeded with these details. */
+function makeSetupLink(a){
+  const payload = {
+    n: a.name,               // preferred/display name
+    e: (a.email || '').toLowerCase(),
+    t: a.target || 187,
+    s: a.start || '',
+    l: a.legalName || ''     // college-form name, used only if this person is also the manager (usually blank)
+  };
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  return 'https://littlepuddingssingin.github.io/otj/?setup=' + code;
+}
+function readSetupParam(){
+  const m = window.location.search.match(/[?&]setup=([^&]+)/);
+  if(!m) return null;
+  try { return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))); }
+  catch(e){ return null; }
+}
+let pendingSetup = readSetupParam();   // captured at load, applied after sign-in
+
 function bindApprenticeIdentity(){
   if(session.role === 'manager') return;
   const who = whoSignedIn();
-  // match an existing apprentice by stored email, else create their record
   let me = db.apprentices.find(a => (a.email || '').toLowerCase() === who);
-  if(!me){
-    if(db.apprentices.length === 1 && !db.apprentices[0].email){
-      me = db.apprentices[0]; me.email = who;      // adopt the single existing record
-    } else {
-      const nm = cloudAccount.name || who.split('@')[0];
-      me = { id: uid(), name: nm, email: who, target: 187, start: '' };
+
+  // apply a setup link if one is present and matches (or if no record yet)
+  if(pendingSetup && (!me || (pendingSetup.e && pendingSetup.e === who))){
+    if(!me){
+      me = { id: uid(), email: who, name: pendingSetup.n || (cloudAccount.name || who.split('@')[0]),
+             target: pendingSetup.t || 187, start: pendingSetup.s || '', legalName: pendingSetup.l || '' };
       db.apprentices.push(me);
+    } else {
+      me.name = pendingSetup.n || me.name;
+      me.target = pendingSetup.t || me.target;
+      me.start = pendingSetup.s || me.start;
+      if(pendingSetup.l) me.legalName = pendingSetup.l;
     }
+    pendingSetup = null;
+    store.write(db);
+  }
+
+  if(!me){
+    const nm = cloudAccount.name || who.split('@')[0];
+    me = { id: uid(), name: nm, email: who, target: 187, start: '' };
+    db.apprentices.push(me);
     store.write(db);
   }
   session.appId = me.id;
@@ -738,6 +799,8 @@ function monthRec(){
   return db.months[mKey()];
 }
 function app(){ return db.apprentices.find(a => a.id === currentApp) || null; }
+/* name that appears on the submitted form: legal name if given, else display name */
+function formName(a){ return (a && a.legalName && a.legalName.trim()) ? a.legalName.trim() : (a ? a.name : ''); }
 function fmt(mins){
   if(!mins) return '0';
   const h = Math.floor(mins/60), m = mins % 60;
@@ -814,6 +877,30 @@ function updateStart(v){
   const a = app(); if(!a) return;
   a.start = v;
   save(); render();
+}
+function updateLegal(v){
+  const a = app(); if(!a) return;
+  a.legalName = (v || '').trim();
+  save(); render();
+}
+function updateEmail(v){
+  const a = app(); if(!a) return;
+  a.email = (v || '').trim().toLowerCase();
+  save(); render();
+}
+function copySetupLink(){
+  const a = app(); if(!a) return;
+  if(!a.email){ toast('Add their sign-in email first'); return; }
+  const link = makeSetupLink(a);
+  const box = document.getElementById('setupLink');
+  box.value = link;
+  try {
+    navigator.clipboard.writeText(link);
+    toast('Setup link copied, send it to ' + a.name);
+  } catch(e){
+    box.select();
+    toast('Select and copy the link');
+  }
 }
 function removeApprentice(){
   const a = app(); if(!a) return;
@@ -1164,10 +1251,11 @@ function formData(){
   const cf = bf + monthMins;
   return {
     a, rec, bf, list, monthMins, cf,
-    initA: initials(rec.sig.a || a.name),
+    initA: initials(rec.sig.a || formName(a)),
     label: new Date(currentMonth + '-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'}),
     left: Math.max(0, a.target*60 - cf),
-    fileStem: 'OTJ-' + a.name.replace(/\s+/g,'-') + '-' + currentMonth
+    formName: formName(a),
+    fileStem: 'OTJ-' + formName(a).replace(/\s+/g,'-') + '-' + currentMonth
   };
 }
 
@@ -1204,7 +1292,7 @@ function buildPlainForm(){
   const body =
     '<p class="intro">' + COLLEGE.intro + '</p>' +
     '<table class="nb" style="margin-bottom:8pt"><tr>' +
-      '<td width="50%" class="small"><b>Apprentice:</b> ' + escHtml(d.a.name) + '</td>' +
+      '<td width="50%" class="small"><b>Apprentice:</b> ' + escHtml(d.formName) + '</td>' +
       '<td width="25%" class="small"><b>Month:</b> ' + d.label + '</td>' +
       '<td width="25%" class="small"><b>Planned OTJ hours:</b> ' + d.a.target + '</td></tr></table>' +
     '<table><tr><th width="12%">Date</th><th class="l" width="52%">Brief details of activity undertaken and skills gained</th>' +
@@ -1283,7 +1371,7 @@ function buildBrandedForm(){
       '<div class="sub">Little Puddings &nbsp;|&nbsp; Grounded &amp; Curious Ltd</div></td></tr></table>' +
 
     '<table class="metatab" style="margin-top:7pt"><tr>' +
-      '<td width="34%"><span class="k">Apprentice</span><b>' + escHtml(d.a.name) + '</b></td>' +
+      '<td width="34%"><span class="k">Apprentice</span><b>' + escHtml(d.formName) + '</b></td>' +
       '<td width="22%"><span class="k">Month</span><b>' + d.label + '</b></td>' +
       '<td width="22%"><span class="k">Planned OTJ hours</span><b>' + d.a.target + '</b></td>' +
       '<td width="22%"><span class="k">Progress</span><b>' + decHours(d.cf) + ' of ' + d.a.target + ' (' + pct + '%)</b></td>' +
@@ -1323,7 +1411,7 @@ function buildBrandedForm(){
     '<table class="foot" style="margin-top:9pt"><tr>' +
       '<td width="34%">Little Puddings internal record</td>' +
       '<td width="33%" align="center">Off the job learning</td>' +
-      '<td width="33%" align="right">' + escHtml(d.a.name) + ' &nbsp;|&nbsp; ' + d.label + '</td></tr></table>';
+      '<td width="33%" align="right">' + escHtml(d.formName) + ' &nbsp;|&nbsp; ' + d.label + '</td></tr></table>';
 
   return { styles, body, fileStem: d.fileStem };
 }
@@ -1804,6 +1892,13 @@ function render(){
 
   document.getElementById('editTarget').value = a.target;
   document.getElementById('editTargetName').textContent = a.name;
+  document.getElementById('editLegal').value = a.legalName || '';
+  document.getElementById('editLegalName').textContent = a.name;
+  document.getElementById('editEmail').value = a.email || '';
+  document.getElementById('editEmailName').textContent = a.name;
+  document.getElementById('editLinkName').textContent = a.name;
+  document.getElementById('setupLink').value = a.email ? makeSetupLink(a) : '';
+  document.getElementById('setupLinkHint').textContent = a.email ? '' : 'Add their sign-in email above to generate the link.';
   document.getElementById('editStart').value = a.start || '';
   document.getElementById('editStartName').textContent = a.name;
   document.getElementById('setPin').value = db.pin || '';
