@@ -254,6 +254,15 @@
           <div class="hint">This keeps the supervision view out of everyday sight. It is not strong security; real access control comes with the staff portal.</div>
         </div>
       </div>
+      <div class="row" style="margin-top:1rem;border-top:1px solid var(--light);padding-top:.9rem">
+        <div class="wide">
+          <label>Start fresh on this device</label>
+          <div class="hint">Clears any test or leftover data from this browser. Anything already saved to OneDrive is safe and reloads when you sign in. Use this once to remove old test entries.</div>
+        </div>
+        <div class="narrow" style="display:flex;align-items:flex-end">
+          <button class="btn-danger" style="width:100%" onclick="clearLocal()">Clear test data</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -646,7 +655,16 @@ function updateCloudButton(){
   if(!b) return;
   if(!cloudConfigured()){ b.style.display = 'none'; return; }
   if(!cloudLibReady()){ b.textContent = 'Sign-in unavailable here'; b.title = 'The Microsoft sign-in library could not load, often the work network blocking it. Try from home or mobile data.'; return; }
-  b.textContent = cloudAccount ? ('Signed in: ' + (cloudAccount.name || 'account')) : 'Sign in to save';
+  if(cloudAccount){
+    b.textContent = 'Sign out (' + (cloudAccount.name || 'signed in') + ')';
+    b.title = 'Sign out of your Little Puddings account';
+  } else {
+    b.textContent = 'Sign in to save';
+    b.title = '';
+  }
+  // when signed in, the account sets the role, so hide the PIN-based manager toggle
+  const mgrBtn = document.getElementById('mgrBtn');
+  if(mgrBtn) mgrBtn.style.display = cloudAccount ? 'none' : '';
 }
 
 /* ---------- welcome gate ---------- */
@@ -779,7 +797,7 @@ function firstAdd(){
 }
 function addApprentice(){
   const name = document.getElementById('newName').value.trim();
-  const target = parseInt(document.getElementById('newTarget').value) || 278;
+  const target = parseInt(document.getElementById('newTarget').value) || 187;
   if(!name) return toast('Enter a name first');
   const id = uid();
   db.apprentices.push({ id, name, target, start: document.getElementById('newStart').value || '' });
@@ -1628,6 +1646,17 @@ function weeklyPanel(){
 /* ---------- supervision view (manager only) ---------- */
 let supOpen = false;
 function setPin(v){ const t = (v || '').trim(); if(!t) return toast('PIN cannot be blank'); db.pin = t; save(); toast('PIN updated'); }
+function clearLocal(){
+  if(!confirm('Clear all data from THIS device and start fresh?\n\nAnything already saved to OneDrive is safe and will reload when you sign in. This only wipes local test data.')) return;
+  try { localStorage.removeItem(KEY); } catch(e){}
+  db = JSON.parse(JSON.stringify(seed));
+  currentApp = null;
+  lastSyncedJSON = null;
+  // if signed in, reload the real cloud copy; otherwise show the empty start
+  if(cloudAccount){ afterSignIn(true); }
+  else { render(); }
+  toast('Cleared. Starting fresh.');
+}
 function toggleSup(){
   if(!isManager()) return;
   supOpen = !supOpen;
