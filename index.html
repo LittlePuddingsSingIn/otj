@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Puddings | Off-the-Job Learning Record</title>
+<style>
+  :root{
+    --green:#1A7A4A; --gold:#D4A017; --grey:#6B6460; --pale:#E8F1EC;
+    --cream:#FBF3DC; --light:#CCCCCC; --burgundy:#A13A2A; --rose:#F4DEDA;
+    --ink:#2B2B2B; --white:#fff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#F5F7F5;color:var(--ink);font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5}
+  h1,h2,h3{font-family:Georgia,'Times New Roman',serif;color:var(--green);margin:0 0 .4rem}
+  h1{font-size:1.5rem}
+  h2{font-size:1.15rem}
+  h3{font-size:1rem}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 1rem 4rem}
+
+  header.app{background:var(--green);color:var(--white);padding:1rem 0}
+  header.app h1{color:var(--white);margin:0}
+  header.app .sub{font-size:.85rem;opacity:.9}
+  header.app .bar{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between}
+
+  .card{background:var(--white);border:1px solid var(--light);border-radius:8px;padding:1rem;margin-top:1rem}
+  .card.locked{background:#FAFAF8}
+
+  label{display:block;font-size:.78rem;font-weight:bold;color:var(--grey);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem}
+  input,select,textarea,button{font-family:Arial,Helvetica,sans-serif;font-size:.95rem}
+  input,select,textarea{width:100%;padding:.5rem;border:1px solid var(--light);border-radius:5px;background:var(--white)}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:var(--gold)}
+  textarea{min-height:150px;resize:vertical;line-height:1.6}
+  .row{display:flex;flex-wrap:wrap;gap:.75rem}
+  .row > div{flex:1 1 140px;min-width:0}
+  .row > div.wide{flex:3 1 320px}
+  .row > div.narrow{flex:0 1 110px}
+
+  button{cursor:pointer;border:none;border-radius:5px;padding:.55rem .9rem;font-weight:bold}
+  .btn-primary{background:var(--green);color:#fff}
+  .btn-gold{background:var(--gold);color:#3a2c00}
+  .btn-ghost{background:var(--white);color:var(--green);border:1px solid var(--green)}
+  .btn-quiet{background:var(--pale);color:var(--green)}
+  .btn-danger{background:var(--white);color:var(--burgundy);border:1px solid var(--burgundy)}
+  button:hover{filter:brightness(.94)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .btn-sm{padding:.3rem .55rem;font-size:.8rem}
+
+  table{width:100%;border-collapse:collapse;margin-top:.6rem}
+  th{background:var(--pale);color:var(--green);font-family:Georgia,serif;font-size:.85rem;text-align:left;padding:.5rem;border:1px solid var(--light)}
+  td{padding:.5rem;border:1px solid var(--light);vertical-align:top;font-size:.9rem}
+  tr:nth-child(even) td{background:#FCFDFC}
+  td.num{white-space:nowrap;text-align:right}
+  .tag{display:inline-block;background:var(--cream);color:#5a4300;border-radius:20px;padding:.1rem .5rem;font-size:.72rem;margin-top:.25rem}
+  .empty{color:var(--grey);font-style:italic;padding:1.2rem;text-align:center}
+
+  .stats{display:flex;flex-wrap:wrap;gap:.75rem}
+  .stat{flex:1 1 150px;background:var(--pale);border-radius:6px;padding:.7rem .8rem}
+  .stat .n{font-family:Georgia,serif;font-size:1.5rem;color:var(--green);font-weight:bold}
+  .stat .l{font-size:.75rem;color:var(--grey);text-transform:uppercase;letter-spacing:.04em}
+  .stat.gold{background:var(--cream)}
+  .stat.gold .n{color:#8a6a00}
+
+  .track{height:14px;background:var(--pale);border-radius:20px;overflow:hidden;margin:.5rem 0 .3rem}
+  .track > span{display:block;height:100%;background:var(--green)}
+  .track-note{font-size:.8rem;color:var(--grey)}
+
+  .flag{background:var(--rose);border-left:4px solid var(--burgundy);padding:.6rem .8rem;border-radius:0 5px 5px 0;font-size:.88rem;margin-top:.6rem}
+  .note{background:var(--cream);border-left:4px solid var(--gold);padding:.6rem .8rem;border-radius:0 5px 5px 0;font-size:.88rem;margin-top:.6rem}
+  .hint{font-size:.8rem;color:var(--grey);margin-top:.3rem}
+
+  .pill{display:inline-block;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:bold}
+  .pill.draft{background:var(--cream);color:#7a5c00}
+  .pill.submitted{background:var(--pale);color:var(--green)}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:space-between}
+  .toolbar .grp{display:flex;flex-wrap:wrap;gap:.5rem}
+  .sig-grid{display:flex;flex-wrap:wrap;gap:.75rem}
+  .sig{flex:1 1 220px;border:1px dashed var(--light);border-radius:6px;padding:.7rem}
+  .sigpad{width:100%;height:90px;border:1px solid var(--light);border-radius:5px;background:#fff;touch-action:none;display:block;margin-top:.35rem;cursor:crosshair}
+  .sigpad.locked{background:#FAFAF8;cursor:default}
+  .sigrow{display:flex;justify-content:space-between;align-items:center;margin-top:.35rem}
+  .sigrow .lnk{font-size:.75rem;color:var(--burgundy);background:none;border:none;padding:0;cursor:pointer;font-weight:bold}
+  .sigimg{max-height:70px;max-width:100%}
+  .sigline{border-top:1px solid var(--grey);margin-top:.2rem;padding-top:.2rem;font-size:.8rem;color:var(--grey)}
+  .toast{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:.6rem 1.1rem;border-radius:20px;font-size:.9rem;box-shadow:0 3px 10px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
+  .toast.show{opacity:1}
+  .mt{background:var(--cream);border:2px solid var(--gold);border-radius:8px;padding:.9rem 1rem}
+  .mt.done{background:var(--pale);border-color:var(--green)}
+  .mt-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;justify-content:space-between}
+  .mt-big{font-family:Georgia,serif;font-size:2rem;font-weight:bold;color:#8a6a00;line-height:1}
+  .mt.done .mt-big{color:var(--green)}
+  .mt-lab{font-size:.85rem;color:var(--grey)}
+  .mt-track{height:20px;background:#fff;border-radius:20px;overflow:hidden;margin:.7rem 0 .4rem;border:1px solid var(--light)}
+  .mt-track > span{display:block;height:100%;background:var(--gold);transition:width .3s}
+  .mt.done .mt-track > span{background:var(--green)}
+  .mt-note{font-size:.86rem;color:#5a4300}
+  .mt.done .mt-note{color:var(--green);font-weight:bold}
+  .breakdown{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}
+  .breakdown span{background:var(--pale);border-radius:5px;padding:.25rem .55rem;font-size:.78rem;color:var(--green)}
+  .sup{border:2px solid var(--gold);background:#FFFDF7}
+  .sup h2{color:#8a6a00}
+  .supbar{display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem}
+  .supbar .nm{flex:0 0 190px;font-size:.85rem}
+  .supbar .tr{flex:1;height:18px;background:var(--pale);border-radius:4px;overflow:hidden;min-width:60px}
+  .supbar .tr > i{display:block;height:100%;background:var(--green)}
+  .supbar .tr > i.none{background:var(--light)}
+  .supbar .vv{flex:0 0 108px;text-align:right;font-size:.82rem;color:var(--grey);white-space:nowrap}
+  .gap{color:var(--burgundy);font-weight:bold}
+  .supgrid{display:flex;flex-wrap:wrap;gap:1rem}
+  .supgrid > div{flex:1 1 300px;min-width:0}
+  .print-only{display:none}
+
+  @media print{
+    body{background:#fff;font-size:11pt}
+    .no-print{display:none !important}
+    .print-only{display:block}
+    .card{border:none;padding:0;margin-top:.8rem;page-break-inside:avoid}
+    .wrap{max-width:none;padding:0}
+    th{background:#E8F1EC !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    td{font-size:10pt}
+    textarea{border:none;padding:0;min-height:0;height:auto;overflow:visible}
+  }
+</style>
+</head>
+<body>
+
+<header class="app no-print">
+  <div class="wrap bar">
+    <div>
+      <h1>Off-the-Job Learning Record</h1>
+      <div class="sub">Little Puddings | Grounded &amp; Curious Ltd &nbsp;&middot;&nbsp; <span id="roleLabel"></span></div>
+    </div>
+    <div class="grp" style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <button class="btn-gold" onclick="exportWord()">Word</button>
+      <button class="btn-gold" onclick="exportCollegePDF()">PDF</button>
+      <button class="btn-ghost" onclick="window.print()">Print this screen</button>
+      <button class="btn-ghost" onclick="exportJSON()">Back up data</button>
+      <button class="btn-ghost" id="mgrBtn" onclick="toggleRole()">Manager mode</button>
+      <button class="btn-ghost" id="importBtn" onclick="document.getElementById('importer').click()">Import a backup</button>
+      <input type="file" id="importer" accept="application/json" style="display:none" onchange="importJSON(event)">
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- First run -->
+  <div class="card" id="firstRun" style="display:none">
+    <h2>Set up</h2>
+    <p class="hint" style="margin-top:0">No apprentices have been added yet. Add the first one to begin. Names are stored on this device, never in the app's code.</p>
+    <div class="row">
+      <div class="wide">
+        <label for="frName">Apprentice name</label>
+        <input id="frName" placeholder="Full name" onkeydown="if(event.key==='Enter')firstAdd()">
+      </div>
+      <div class="narrow">
+        <label for="frTarget">Planned OTJ hours</label>
+        <input id="frTarget" type="number" value="187" min="1">
+      </div>
+      <div class="narrow">
+        <label for="frStart">Start date</label>
+        <input type="date" id="frStart">
+      </div>
+      <div class="narrow" style="display:flex;align-items:flex-end">
+        <button class="btn-primary" style="width:100%" onclick="firstAdd()">Add</button>
+      </div>
+    </div>
+    <div class="hint">Planned hours: minimum 187 per apprenticeship, calculated at 6 hours for each week of learning. Confirm the figure with the training provider.</div>
+  </div>
+
+  <!-- Selector -->
+  <div class="card no-print" id="selectorCard">
+    <div class="row">
+      <div class="wide">
+        <label for="apprentice">Apprentice</label>
+        <select id="apprentice" onchange="setApprentice(this.value)"></select>
+      </div>
+      <div>
+        <label for="month">Month of record</label>
+        <input type="month" id="month" onchange="setMonth(this.value)">
+      </div>
+      <div class="narrow" style="display:flex;align-items:flex-end">
+        <button class="btn-quiet" id="settingsBtn" style="width:100%" onclick="openSettings()">Settings</button>
+      </div>
+    </div>
+    <div id="settingsPanel" style="display:none;margin-top:.9rem;border-top:1px solid var(--light);padding-top:.9rem">
+      <div class="row">
+        <div class="wide">
+          <label for="newName">Add an apprentice</label>
+          <input id="newName" placeholder="Full name">
+        </div>
+        <div class="narrow">
+          <label for="newTarget">Planned OTJ hours</label>
+          <input id="newTarget" type="number" value="187" min="1">
+        </div>
+        <div class="narrow">
+          <label for="newStart">Start date</label>
+          <input type="date" id="newStart">
+        </div>
+        <div class="narrow" style="display:flex;align-items:flex-end">
+          <button class="btn-primary" style="width:100%" onclick="addApprentice()">Add</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <div class="wide">
+          <label for="editTarget">Planned OTJ hours for <span id="editTargetName"></span></label>
+          <input id="editTarget" type="number" min="1" onchange="updateTarget(this.value)">
+          <div class="hint">Minimum per apprenticeship is 187 hours, more is acceptable. Calculated at 6 hours for each week of learning, so confirm the planned figure with the college.</div>
+        </div>
+        <div class="narrow" style="display:flex;align-items:flex-end">
+          <button class="btn-danger" style="width:100%" onclick="removeApprentice()">Remove</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <div class="wide">
+          <label for="editStart">Apprenticeship start date for <span id="editStartName"></span></label>
+          <input type="date" id="editStart" onchange="updateStart(this.value)">
+          <div class="hint">Used to work out how many weeks of learning have elapsed, and therefore how many hours should have been logged by now.</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.7rem">
+        <div class="wide">
+          <label for="setPin">Manager PIN for the supervision view</label>
+          <input id="setPin" type="text" maxlength="8" onchange="setPin(this.value)">
+          <div class="hint">This keeps the supervision view out of everyday sight. It is not strong security; real access control comes with the staff portal.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Print header -->
+  <div class="print-only">
+    <h1>Off-the-Job Learning Record</h1>
+    <div id="printHeader" style="font-size:10pt;color:#6B6460"></div>
+  </div>
+
+  <!-- Weekly task -->
+  <div class="card" id="taskCard">
+    <div class="toolbar">
+      <h2 style="margin:0">This week's focus</h2>
+      <button class="btn-quiet btn-sm no-print" id="taskEditBtn" onclick="openTaskEditor()" style="display:none">Set a task</button>
+    </div>
+    <div id="taskBody"></div>
+    <div id="taskEditor" style="display:none;margin-top:.8rem">
+      <div class="row">
+        <div class="wide">
+          <label for="taskText">Task for the week beginning <span id="taskWeekLabel"></span></label>
+          <input id="taskText" placeholder="e.g. Complete the annual safeguarding refresher module">
+        </div>
+      </div>
+      <div class="row" style="margin-top:.5rem">
+        <div class="wide">
+          <label for="taskLink">Link (optional)</label>
+          <input id="taskLink" placeholder="Paste a link to the course, article or resource">
+        </div>
+        <div class="narrow">
+          <label for="taskFor">For</label>
+          <select id="taskFor"></select>
+        </div>
+      </div>
+      <div class="toolbar no-print" style="margin-top:.6rem">
+        <div class="grp">
+          <button class="btn-primary btn-sm" onclick="saveTask()">Save task</button>
+          <button class="btn-ghost btn-sm" onclick="closeTaskEditor()">Cancel</button>
+        </div>
+        <button class="btn-danger btn-sm" onclick="clearTask()">Remove this week's task</button>
+      </div>
+      <div class="hint">Set it for everyone, or just one apprentice. It shows to them for the whole week.</div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="card" id="progressCard">
+    <h2>This month</h2>
+    <div id="monthTarget"></div>
+    <h2 style="margin-top:1.2rem">Progress towards planned hours</h2>
+    <div class="stats">
+      <div class="stat"><div class="n" id="statMonth">0</div><div class="l">This month</div></div>
+      <div class="stat"><div class="n" id="statBrought">0</div><div class="l">Brought forward</div></div>
+      <div class="stat gold"><div class="n" id="statCarried">0</div><div class="l">Carried forward</div></div>
+      <div class="stat"><div class="n" id="statLeft">0</div><div class="l">Still to complete</div></div>
+    </div>
+    <div class="track"><span id="trackFill" style="width:0%"></span></div>
+    <div class="track-note" id="trackNote"></div>
+    <div class="breakdown" id="breakdown"></div>
+  </div>
+
+  <!-- Add entry -->
+  <div class="card no-print" id="addCard">
+    <h2>Log an activity</h2>
+    <div class="row">
+      <div class="narrow">
+        <label for="eDate">Date</label>
+        <input type="date" id="eDate">
+      </div>
+      <div class="wide">
+        <label for="eDetail">Activity undertaken and skills gained</label>
+        <input id="eDetail" placeholder="Shadowed a sensory circuit with four children" onkeydown="if(event.key==='Enter')addEntry()">
+      </div>
+      <div class="narrow">
+        <label for="eType">Type</label>
+        <select id="eType"></select>
+      </div>
+      <div class="narrow">
+        <label for="eStart">Start time</label>
+        <input type="time" id="eStart" oninput="calcDuration()">
+      </div>
+      <div class="narrow">
+        <label for="eEnd">End time</label>
+        <input type="time" id="eEnd" oninput="calcDuration()">
+      </div>
+      <div class="narrow" style="display:flex;flex-direction:column;justify-content:flex-end">
+        <label>Time spent</label>
+        <div id="eDuration" style="padding:.5rem;border:1px solid var(--light);border-radius:5px;background:var(--pale);color:var(--green);font-weight:bold;text-align:center">0</div>
+      </div>
+      <div class="narrow" style="display:flex;align-items:flex-end">
+        <button class="btn-primary" style="width:100%" onclick="addEntry()">Add</button>
+      </div>
+    </div>
+    <div style="margin-top:.7rem">
+      <label for="eComment">What I learnt from this <span style="color:var(--burgundy)">(required)</span></label>
+      <textarea id="eComment" style="min-height:64px" placeholder="What is new to you, or what can you now do that you could not do before?" oninput="commentCount()"></textarea>
+      <div class="hint" id="eCommentCount">Write this now while it is fresh. These build up into your monthly reflection.</div>
+    </div>
+    <div class="hint">Pick a start and end time and the length is worked out for you. If an activity crosses no clear clock times, for example an online module, use <button type="button" class="lnk" style="color:var(--burgundy);background:none;border:none;padding:0;font-weight:bold;cursor:pointer" onclick="toggleManual()">enter the length directly</button> instead. Each entry must be at least 30 minutes.</div>
+    <div id="manualRow" style="display:none;margin-top:.6rem">
+      <div class="row">
+        <div class="narrow">
+          <label for="eHrs">Hours</label>
+          <input type="number" id="eHrs" min="0" max="12" value="0" oninput="calcDuration()">
+        </div>
+        <div class="narrow">
+          <label for="eMins">Minutes</label>
+          <select id="eMins" onchange="calcDuration()">
+            <option value="0">00</option><option value="15">15</option>
+            <option value="30">30</option><option value="45">45</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="addError"></div>
+  </div>
+
+  <!-- Entries -->
+  <div class="card" id="entriesCard">
+    <div class="toolbar">
+      <h2 style="margin:0">Activity log <span id="monthLabel" style="font-family:Arial;font-size:.85rem;color:var(--grey);font-weight:normal"></span></h2>
+      <span class="pill draft" id="statusPill">Draft</span>
+    </div>
+    <table id="entriesTable">
+      <thead>
+        <tr>
+          <th style="width:88px">Date</th>
+          <th>Brief details of activity undertaken and skills gained</th>
+          <th style="width:92px">Record of hours</th>
+          <th style="width:92px">Hours to date</th>
+          <th style="width:64px">Initials</th>
+          <th style="width:96px" class="no-print">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="entriesBody"></tbody>
+      <tfoot id="entriesFoot"></tfoot>
+    </table>
+    <div class="hint no-print">Rows sort themselves by date. The running total carries forward automatically from every previous month.</div>
+  </div>
+
+  <!-- Supervision view (manager) -->
+  <div class="card sup no-print" id="supCard">
+    <div class="toolbar">
+      <h2 style="margin:0">Supervision view</h2>
+      <button class="btn-quiet btn-sm" id="supToggle" onclick="toggleSup()">Open</button>
+    </div>
+    <div id="supBody" style="display:none;margin-top:.8rem"></div>
+    <div id="supGate" style="display:none;margin-top:.8rem">
+      <div class="row">
+        <div class="wide">
+          <label for="supPin">Manager PIN</label>
+          <input type="password" id="supPin" placeholder="Enter PIN" onkeydown="if(event.key==='Enter')unlockSup()">
+        </div>
+        <div class="narrow" style="display:flex;align-items:flex-end">
+          <button class="btn-primary" style="width:100%" onclick="unlockSup()">Open</button>
+        </div>
+      </div>
+      <div class="hint">Set on first use.</div>
+      <div id="supErr"></div>
+    </div>
+  </div>
+
+  <!-- Reflection -->
+  <div class="card" id="reflectionCard">
+    <h2>What I have learnt and how it has helped me in my role</h2>
+    <div id="compiled"></div>
+    <label for="reflection" style="margin-top:.8rem">Pulling it together: overall summary for the month</label>
+    <p class="hint" style="margin-top:0">Looking back over your notes above, what stands out? What can you now do that you could not do before, and how has it changed your practice with the children?</p>
+    <textarea id="reflection" placeholder="Looking back over this month ..." oninput="onReflect(this.value)"></textarea>
+    <div class="hint no-print" id="wordCount">0 words</div>
+  </div>
+
+  <!-- Declaration -->
+  <div class="card" id="declarationCard">
+    <h2>Declaration</h2>
+    <p style="font-size:.88rem;margin-top:0">I confirm the training listed above is an accurate record of off-the-job learning. It does not include on-the-job activity or maths and English. It was undertaken by the apprentice within normal working hours, is directly relevant to the apprenticeship, and provided new knowledge, skills or behaviours required to achieve.</p>
+    <div class="sig-grid" id="sigGrid"></div>
+    <div id="waiverBox"></div>
+    <div class="toolbar no-print" style="margin-top:1rem">
+      <div class="grp">
+        <button class="btn-primary" id="submitBtn" onclick="toggleSubmit()">Mark month as submitted</button>
+        <button class="btn-gold" id="expWordBtn" onclick="exportWord()">Download as Word</button>
+        <button class="btn-gold" id="expPdfBtn" onclick="exportCollegePDF()">Download as PDF</button>
+        <button class="btn-quiet" onclick="exportCSV()">Download as spreadsheet</button>
+      </div>
+      <span class="hint" id="savedAt"></span>
+    </div>
+    <div id="exportStatus"></div>
+    <div class="hint no-print" style="margin-top:.5rem">
+      Both produce the Little Puddings version, which carries everything the college form requires plus activity types and your learning notes.
+      If they insist on their own layout, use the plain college form:
+      <button type="button" class="lnk" style="color:var(--burgundy);background:none;border:none;padding:0;font-weight:bold;cursor:pointer" onclick="exportPlainWord()">Word</button> or
+      <button type="button" class="lnk" style="color:var(--burgundy);background:none;border:none;padding:0;font-weight:bold;cursor:pointer" onclick="exportPlainPDF()">PDF</button>.
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- storage layer: swap this for the portal API later ---------- */
+const KEY = 'lp_otj_v1';
+const mem = {};
+const store = {
+  read(){
+    try { const r = localStorage.getItem(KEY); return r ? JSON.parse(r) : (mem[KEY] || null); }
+    catch(e){ return mem[KEY] || null; }
+  },
+  write(data){
+    mem[KEY] = data;
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch(e){ /* preview mode: memory only */ }
+  }
+};
+
+const TYPES = ['Training or e-learning','Shadowing or observation','Reading or research','Tutorial or mentor session','College or coursework','New practical skill','Meeting or briefing','Visit or outing'];
+
+// No personal data in this file. Apprentices are added by the manager at runtime
+// and stored in the browser (and later in OneDrive), never in the source.
+const seed = {
+  pin: '',            // set by the manager on first use, never shipped in the code
+  apprentices: [],
+  entries: [],   // {id, appId, date, detail, type, mins, comment, start, end}
+  months: {},    // key `${appId}|${YYYY-MM}` -> {reflection, sig:{...}, submitted, supNotes}
+  tasks: {}      // key weekMondayISO -> [{ for:'all'|appId, text, link }]
+};
+
+let db = store.read() || seed;
+let currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
+let currentMonth = new Date().toISOString().slice(0,7);
+
+/* ---------- helpers ---------- */
+const uid = () => Math.random().toString(36).slice(2,10);
+const mKey = () => currentApp + '|' + currentMonth;
+function monthRec(){
+  if(!db.months[mKey()]) db.months[mKey()] = { reflection:'', sig:{a:'',aDate:'',e:'',eDate:'',t:'',tDate:''}, submitted:false };
+  return db.months[mKey()];
+}
+function app(){ return db.apprentices.find(a => a.id === currentApp) || null; }
+function fmt(mins){
+  if(!mins) return '0';
+  const h = Math.floor(mins/60), m = mins % 60;
+  if(h && m) return h + 'h ' + m + 'm';
+  if(h) return h + (h === 1 ? ' hour' : ' hours');
+  return m + ' mins';
+}
+function ukDate(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return d + '/' + m + '/' + y.slice(2);
+}
+function save(){
+  store.write(db);
+  const t = new Date();
+  document.getElementById('savedAt').textContent = 'Saved at ' + t.toTimeString().slice(0,5);
+}
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1800);
+}
+function initials(name){
+  return (name||'').trim().split(/\s+/).map(w => w[0] ? w[0].toUpperCase() : '').join('').slice(0,3);
+}
+
+/* ---------- data views ---------- */
+function myEntries(){
+  return db.entries.filter(e => e.appId === currentApp).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+}
+function monthEntries(){ return myEntries().filter(e => e.date.slice(0,7) === currentMonth); }
+function broughtForward(){
+  return myEntries().filter(e => e.date.slice(0,7) < currentMonth).reduce((s,e) => s + e.mins, 0);
+}
+
+/* ---------- actions ---------- */
+function setApprentice(id){ currentApp = id; render(); }
+function setMonth(m){ if(m) currentMonth = m; render(); }
+function openSettings(){
+  const p = document.getElementById('settingsPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+function firstAdd(){
+  const name = document.getElementById('frName').value.trim();
+  if(!name) return toast('Enter a name first');
+  const id = uid();
+  db.apprentices.push({
+    id, name,
+    target: parseInt(document.getElementById('frTarget').value) || 187,
+    start: document.getElementById('frStart').value || ''
+  });
+  currentApp = id;
+  document.getElementById('frName').value = '';
+  save(); render(); toast(name + ' added');
+}
+function addApprentice(){
+  const name = document.getElementById('newName').value.trim();
+  const target = parseInt(document.getElementById('newTarget').value) || 278;
+  if(!name) return toast('Enter a name first');
+  const id = uid();
+  db.apprentices.push({ id, name, target, start: document.getElementById('newStart').value || '' });
+  currentApp = id;
+  document.getElementById('newName').value = '';
+  save(); render(); toast(name + ' added');
+}
+function updateTarget(v){
+  const a = app(); if(!a) return;
+  a.target = parseInt(v) || 187;
+  save(); render();
+}
+function updateStart(v){
+  const a = app(); if(!a) return;
+  a.start = v;
+  save(); render();
+}
+function removeApprentice(){
+  const a = app(); if(!a) return;
+  if(!confirm('Remove ' + a.name + ' and every logged entry for them? This cannot be undone.')) return;
+  db.entries = db.entries.filter(e => e.appId !== a.id);
+  Object.keys(db.months).forEach(k => { if(k.startsWith(a.id + '|')) delete db.months[k]; });
+  db.apprentices = db.apprentices.filter(x => x.id !== a.id);
+  currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
+  save(); render();
+}
+let manualMode = false;
+function toggleManual(){
+  manualMode = !manualMode;
+  document.getElementById('manualRow').style.display = manualMode ? 'block' : 'none';
+  document.getElementById('eStart').disabled = manualMode;
+  document.getElementById('eEnd').disabled = manualMode;
+  calcDuration();
+}
+function currentMins(){
+  if(manualMode){
+    return (parseInt(document.getElementById('eHrs').value) || 0) * 60 + (parseInt(document.getElementById('eMins').value) || 0);
+  }
+  const s = document.getElementById('eStart').value;
+  const e = document.getElementById('eEnd').value;
+  if(!s || !e) return 0;
+  const [sh,sm] = s.split(':').map(Number);
+  const [eh,em] = e.split(':').map(Number);
+  let mins = (eh*60 + em) - (sh*60 + sm);
+  if(mins < 0) mins += 24*60; // crossed midnight
+  return mins;
+}
+function calcDuration(){
+  const el = document.getElementById('eDuration');
+  const m = currentMins();
+  el.textContent = m ? fmt(m) : '0';
+  el.style.background = (m && m < 30) ? 'var(--rose)' : 'var(--pale)';
+  el.style.color = (m && m < 30) ? 'var(--burgundy)' : 'var(--green)';
+}
+const MIN_COMMENT = 25;
+function commentCount(){
+  const v = document.getElementById('eComment').value.trim();
+  const el = document.getElementById('eCommentCount');
+  if(!v.length){ el.textContent = 'Write this now while it is fresh. These build up into your monthly reflection.'; el.style.color = 'var(--grey)'; return; }
+  if(v.length < MIN_COMMENT){ el.textContent = 'Keep going, add a little more detail (' + v.length + ' of ' + MIN_COMMENT + ' characters).'; el.style.color = 'var(--burgundy)'; return; }
+  el.textContent = 'Good, that will carry into your monthly reflection.'; el.style.color = 'var(--green)';
+}
+function addEntry(){
+  const err = document.getElementById('addError');
+  err.innerHTML = '';
+  if(monthRec().submitted) return toast('This month is submitted and locked');
+  const date = document.getElementById('eDate').value;
+  const detail = document.getElementById('eDetail').value.trim();
+  const comment = document.getElementById('eComment').value.trim();
+  const type = document.getElementById('eType').value;
+  const mins = currentMins();
+  if(!date || !detail){ err.innerHTML = '<div class="flag">Add a date and a short description of the activity.</div>'; return; }
+  if(!mins){ err.innerHTML = '<div class="flag">' + (manualMode ? 'Enter how long the activity lasted.' : 'Pick a start and end time.') + '</div>'; return; }
+  if(mins < 30){ err.innerHTML = '<div class="flag">Each entry must be at least 30 minutes.</div>'; return; }
+  if(comment.length < MIN_COMMENT){
+    err.innerHTML = '<div class="flag">Add a note on what you learnt before saving. Writing it now, while it is fresh, is much easier than trying to remember at the end of the month.</div>';
+    document.getElementById('eComment').focus();
+    return;
+  }
+  const entry = { id:uid(), appId:currentApp, date, detail, type, mins, comment };
+  if(!manualMode){ entry.start = document.getElementById('eStart').value; entry.end = document.getElementById('eEnd').value; }
+  db.entries.push(entry);
+  document.getElementById('eDetail').value = '';
+  document.getElementById('eComment').value = '';
+  document.getElementById('eStart').value = '';
+  document.getElementById('eEnd').value = '';
+  document.getElementById('eHrs').value = 0;
+  document.getElementById('eMins').value = 0;
+  calcDuration(); commentCount();
+  save(); render(); toast('Activity logged');
+  document.getElementById('eDetail').focus();
+}
+function delEntry(id){
+  if(monthRec().submitted) return toast('This month is submitted and locked');
+  const e = db.entries.find(x => x.id === id);
+  if(e && !confirm('Delete this entry?\n\n' + ukDate(e.date) + ': ' + e.detail + '\n\nThis cannot be undone.')) return;
+  db.entries = db.entries.filter(x => x.id !== id);
+  if(editingId === id) editingId = null;
+  save(); render(); toast('Entry deleted');
+}
+
+/* ---------- inline editing ---------- */
+let editingId = null;
+function startEdit(id){
+  if(monthRec().submitted) return toast('This month is submitted and locked');
+  editingId = id; render();
+}
+function cancelEdit(){ editingId = null; render(); }
+function editRowHtml(e, run){
+  const opts = TYPES.map(t => '<option' + (t === e.type ? ' selected' : '') + '>' + t + '</option>').join('');
+  const hrs = Math.floor(e.mins / 60), mns = e.mins % 60;
+  const timed = !!(e.start && e.end);
+  return '<tr style="background:var(--cream)">' +
+    '<td><input type="date" id="ed_date" value="' + e.date + '" style="font-size:.82rem;padding:.3rem"></td>' +
+    '<td>' +
+      '<input id="ed_detail" value="' + escapeAttr(e.detail) + '" style="font-size:.85rem;padding:.35rem">' +
+      '<select id="ed_type" style="font-size:.8rem;padding:.3rem;margin-top:.3rem">' + opts + '</select>' +
+      '<textarea id="ed_comment" style="font-size:.82rem;padding:.35rem;margin-top:.3rem;min-height:56px" placeholder="What I learnt from this">' + escapeHtml(e.comment || '') + '</textarea>' +
+    '</td>' +
+    '<td colspan="2">' +
+      '<div style="display:flex;gap:.3rem;align-items:center">' +
+        (timed
+          ? '<input type="time" id="ed_start" value="' + e.start + '" style="font-size:.8rem;padding:.3rem" oninput="editDur()"><span style="font-size:.75rem;color:var(--grey)">to</span><input type="time" id="ed_end" value="' + e.end + '" style="font-size:.8rem;padding:.3rem" oninput="editDur()">'
+          : '<input type="number" id="ed_hrs" min="0" max="12" value="' + hrs + '" style="font-size:.8rem;padding:.3rem;width:52px" oninput="editDur()"><span style="font-size:.75rem;color:var(--grey)">h</span><input type="number" id="ed_mins" min="0" max="59" step="15" value="' + mns + '" style="font-size:.8rem;padding:.3rem;width:52px" oninput="editDur()"><span style="font-size:.75rem;color:var(--grey)">m</span>') +
+        '<span id="ed_dur" style="font-size:.8rem;font-weight:bold;color:var(--green);margin-left:.3rem">' + fmt(e.mins) + '</span>' +
+      '</div>' +
+      '<div id="ed_err" style="font-size:.75rem;color:var(--burgundy);margin-top:.25rem"></div>' +
+    '</td>' +
+    '<td colspan="2" class="no-print" style="white-space:nowrap">' +
+      '<button class="btn-primary btn-sm" onclick="saveEdit(\'' + e.id + '\')">Save</button> ' +
+      '<button class="btn-ghost btn-sm" onclick="cancelEdit()">Cancel</button>' +
+    '</td></tr>';
+}
+function editMins(){
+  const st = document.getElementById('ed_start');
+  if(st){
+    const s = st.value, en = document.getElementById('ed_end').value;
+    if(!s || !en) return 0;
+    const [sh,sm] = s.split(':').map(Number), [eh,em] = en.split(':').map(Number);
+    let m = (eh*60+em) - (sh*60+sm);
+    if(m < 0) m += 1440;
+    return m;
+  }
+  return (parseInt(document.getElementById('ed_hrs').value) || 0) * 60 + (parseInt(document.getElementById('ed_mins').value) || 0);
+}
+function editDur(){
+  const m = editMins();
+  const el = document.getElementById('ed_dur');
+  el.textContent = m ? fmt(m) : '0';
+  el.style.color = (m && m < 30) ? 'var(--burgundy)' : 'var(--green)';
+}
+function saveEdit(id){
+  const e = db.entries.find(x => x.id === id);
+  if(!e) return;
+  const err = document.getElementById('ed_err');
+  const date = document.getElementById('ed_date').value;
+  const detail = document.getElementById('ed_detail').value.trim();
+  const mins = editMins();
+  const comment = document.getElementById('ed_comment').value.trim();
+  if(!date || !detail){ err.textContent = 'Add a date and a description.'; return; }
+  if(mins < 30){ err.textContent = 'Each entry must be at least 30 minutes.'; return; }
+  if(comment.length < MIN_COMMENT){ err.textContent = 'Add a note on what you learnt (at least ' + MIN_COMMENT + ' characters).'; return; }
+  e.date = date;
+  e.detail = detail;
+  e.comment = comment;
+  e.type = document.getElementById('ed_type').value;
+  e.mins = mins;
+  const st = document.getElementById('ed_start');
+  if(st){ e.start = st.value; e.end = document.getElementById('ed_end').value; }
+  e.edited = new Date().toISOString();
+  editingId = null;
+  const moved = date.slice(0,7) !== currentMonth;
+  save(); render();
+  toast(moved ? 'Entry updated and moved to ' + new Date(date.slice(0,7) + '-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'}) : 'Entry updated');
+}
+function onReflect(v){ monthRec().reflection = v; save(); countWords(); }
+function onSig(field, v){ monthRec().sig[field] = v; save(); }
+
+const SIG_ROLES = [
+  { k:'a', label:'Apprentice' },
+  { k:'e', label:'Employer' },
+  { k:'t', label:'Assessor' }
+];
+function renderSignatures(locked, a){
+  const rec = monthRec();
+  const grid = document.getElementById('sigGrid');
+  grid.innerHTML = SIG_ROLES.map(r => {
+    const img = rec.sig[r.k + 'Img'];
+    const name = rec.sig[r.k] || '';
+    const date = rec.sig[r.k + 'Date'] || '';
+    const drawn = img
+      ? '<img class="sigimg" src="' + img + '" alt="signature">'
+      : '<canvas class="sigpad' + (locked ? ' locked' : '') + '" id="pad_' + r.k + '"></canvas>';
+    return '<div class="sig">' +
+      '<label>' + r.label + '</label>' +
+      '<input id="sig' + r.k.toUpperCase() + '" placeholder="Type name (printed under signature)" value="' + escapeAttr(name) + '" ' + (locked ? 'readonly' : '') + ' oninput="onSig(\'' + r.k + '\',this.value)">' +
+      drawn +
+      '<div class="sigrow">' +
+        (locked || img ? '<span class="hint">' + (img ? 'Signed' : '') + '</span>' : '<span class="hint">Sign above with finger or mouse</span>') +
+        (locked ? '' : '<button class="lnk" onclick="clearSig(\'' + r.k + '\')">Clear</button>') +
+      '</div>' +
+      '<input type="date" id="sig' + r.k.toUpperCase() + 'Date" value="' + date + '" style="margin-top:.4rem" ' + (locked ? 'readonly' : '') + ' onchange="onSig(\'' + r.k + 'Date\',this.value)">' +
+    '</div>';
+  }).join('');
+  if(!locked) SIG_ROLES.forEach(r => { if(!rec.sig[r.k + 'Img']) initPad(r.k); });
+}
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+function clearSig(k){
+  const rec = monthRec();
+  delete rec.sig[k + 'Img'];
+  save(); render();
+}
+function initPad(k){
+  const cv = document.getElementById('pad_' + k);
+  if(!cv) return;
+  const ratio = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * ratio; cv.height = h * ratio;
+  const ctx = cv.getContext('2d');
+  ctx.scale(ratio, ratio);
+  ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a1a1a';
+  let drawing = false, moved = false, lastX = 0, lastY = 0;
+  const pos = e => {
+    const r = cv.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - r.left, y: p.clientY - r.top };
+  };
+  const start = e => { e.preventDefault(); drawing = true; moved = false; const p = pos(e); lastX = p.x; lastY = p.y; };
+  const move = e => {
+    if(!drawing) return; e.preventDefault();
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    lastX = p.x; lastY = p.y; moved = true;
+  };
+  const end = () => {
+    if(!drawing) return; drawing = false;
+    if(moved){ monthRec().sig[k + 'Img'] = cv.toDataURL('image/png'); save(); }
+  };
+  cv.addEventListener('pointerdown', start);
+  cv.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+}
+function toggleSubmit(){
+  const r = monthRec();
+  if(!r.submitted){
+    if(monthEntries().length === 0) return toast('Log at least one activity first');
+    if(!r.reflection.trim()) return toast('Complete the reflection first');
+    if(!r.sig.a.trim() && !r.sig.aImg) return toast('The apprentice needs to sign first');
+    if(!r.sig.e.trim() && !r.sig.eImg) return toast('You need to sign as employer before submitting');
+    r.submitted = true; toast('Month submitted and locked');
+  } else {
+    if(!confirm('Unlock this month for editing?')) return;
+    r.submitted = false; toast('Month unlocked');
+  }
+  save(); render();
+}
+
+/* ---------- export ---------- */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'little-puddings-otj-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  toast('Backup downloaded');
+}
+function importJSON(ev){
+  const f = ev.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const d = JSON.parse(rd.result);
+      if(!d.apprentices || !d.entries) throw new Error('bad file');
+
+      const mode = db.apprentices.length
+        ? (confirm('Merge this backup into your existing records?\n\nOK = merge (keeps everyone you already have)\nCancel = replace everything with this backup')
+            ? 'merge' : 'replace')
+        : 'replace';
+
+      if(mode === 'replace'){
+        db = d;
+        currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
+        save(); render(); toast('Backup restored');
+        return;
+      }
+
+      // merge: incoming data wins for apprentices and months it covers
+      let added = 0, updated = 0;
+      d.apprentices.forEach(inA => {
+        const mine = db.apprentices.find(x => x.id === inA.id || x.name.toLowerCase() === inA.name.toLowerCase());
+        if(mine){
+          Object.assign(mine, { target: inA.target, start: inA.start || mine.start });
+          // re-key incoming records onto the id we already hold
+          if(mine.id !== inA.id){
+            d.entries.forEach(e => { if(e.appId === inA.id) e.appId = mine.id; });
+            Object.keys(d.months).forEach(k => {
+              if(k.startsWith(inA.id + '|')){
+                d.months[mine.id + '|' + k.split('|')[1]] = d.months[k];
+                delete d.months[k];
+              }
+            });
+          }
+          updated++;
+        } else {
+          db.apprentices.push(inA); added++;
+        }
+      });
+      let newEntries = 0;
+      d.entries.forEach(e => {
+        const dup = db.entries.find(x => x.id === e.id ||
+          (x.appId === e.appId && x.date === e.date && x.detail === e.detail && x.mins === e.mins));
+        if(dup) Object.assign(dup, e); else { db.entries.push(e); newEntries++; }
+      });
+      Object.keys(d.months).forEach(k => { db.months[k] = d.months[k]; });
+
+      currentApp = currentApp || (db.apprentices[0] ? db.apprentices[0].id : null);
+      save(); render();
+      toast('Merged: ' + added + ' new, ' + updated + ' updated, ' + newEntries + ' entries added');
+    } catch(e){ toast('That file could not be read'); }
+  };
+  rd.readAsText(f);
+  ev.target.value = '';
+}
+function exportCSV(){
+  let run = broughtForward();
+  const rows = [['Date','Activity','Type','Hours logged','Hours to date']];
+  monthEntries().forEach(e => {
+    run += e.mins;
+    rows.push([ukDate(e.date), e.detail, e.type, fmt(e.mins), fmt(run)]);
+  });
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+  a.download = 'otj-' + (app() ? app().name.toLowerCase() : 'record') + '-' + currentMonth + '.csv';
+  a.click();
+}
+function decHours(mins){
+  const h = mins / 60;
+  return (Math.round(h * 100) / 100).toString().replace(/\.00$/,'');
+}
+function colDate(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return d + ' ' + m + ' ' + y.slice(2);
+}
+/* College wording, held once so both versions stay identical in substance */
+const COLLEGE = {
+  intro: 'This document is to record summary details of all off-the-job activity, new skills gained and the impact on you and your personal development. Off-the-job hours are allocated to off-the-job activity only. Off-the-job hours are calculated at the equivalent of 6-hours off-the-job for each week of learning.',
+  reflectPrompt: 'You have logged the above learning activities that you have completed. Please could you detail what you have learnt and how this has helped you in your job role:',
+  declaration: 'I can confirm the training listed above is an accurate record for off-the-job learning and does not include on-the-job or Maths / English activity and has been undertaken by the apprentice within their normal working hours, is directly relevant to the apprenticeship and provided new knowledge, skills or behaviours required to achieve.',
+  waiver: 'Total planned OTJ hours must be achieved by the end of the apprenticeship, Guide to OTJ Training with Apprentices, AW2 4 15 refers. When planned OTJ hours do not match actual OTJ hours the Apprentice and Employer agrees to sign a statement (waiver) that they have understood and agreed to this, whilst explaining why these two figures are different, BW3 8 5 refers. Minimum OTJ hours per Apprenticeship are 187, more are acceptable.',
+  ref: 'QMM &nbsp;&nbsp;&nbsp; BW3 8 4',
+  updated: 'Updated &nbsp;&nbsp; 01 August 2025',
+  colHours: 'Record of hours<br>(min 30 mins)',
+  colTotal: 'Total hours to be carried forward'
+};
+
+function formData(){
+  const a = app(); if(!a) return null;
+  const rec = monthRec();
+  const bf = broughtForward();
+  const list = monthEntries();
+  const monthMins = list.reduce((s,e) => s + e.mins, 0);
+  const cf = bf + monthMins;
+  return {
+    a, rec, bf, list, monthMins, cf,
+    initA: initials(rec.sig.a || a.name),
+    label: new Date(currentMonth + '-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'}),
+    left: Math.max(0, a.target*60 - cf),
+    fileStem: 'OTJ-' + a.name.replace(/\s+/g,'-') + '-' + currentMonth
+  };
+}
+
+/* ---------- plain version: mirrors their form exactly ---------- */
+function buildPlainForm(){
+  const d = formData(); if(!d) return null;
+  let run = d.bf;
+  let rows = d.list.map(e => {
+    run += e.mins;
+    return '<tr><td>' + colDate(e.date) + '</td><td>' + escHtml(e.detail) + '</td>' +
+      '<td align="center">' + decHours(e.mins) + '</td><td align="center">' + decHours(run) + '</td>' +
+      '<td align="center">' + escHtml(d.initA) + '</td></tr>';
+  }).join('');
+  for(let i = d.list.length; i < 12; i++) rows += '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>';
+
+  const notes = d.list.filter(e => e.comment);
+  const refl =
+    (notes.length ? '<p style="margin:0 0 5pt;font-size:8.5pt;font-weight:bold">Notes recorded during the month</p>' +
+      notes.map(e => '<p style="margin:0 0 6pt"><b>' + colDate(e.date) + '</b> &nbsp; ' + escHtml(e.comment) + '</p>').join('') : '') +
+    (d.rec.reflection
+      ? '<p style="margin:12pt 0 5pt;font-size:8.5pt;font-weight:bold;border-top:0.75pt solid #999999;padding-top:8pt">Overall summary for the month</p>' +
+        '<p style="margin:0">' + escHtml(d.rec.reflection).replace(/\n/g,'<br>') + '</p>'
+      : '');
+
+  const sig = (k, role) => {
+    const img = d.rec.sig[k + 'Img'], nm = d.rec.sig[k] || '', dt = d.rec.sig[k + 'Date'] ? colDate(d.rec.sig[k + 'Date']) : '';
+    return '<td width="33%" valign="top"><div style="height:46pt">' + (img ? '<img src="' + img + '" height="42" style="max-width:150px">' : '&nbsp;') + '</div>' +
+      '<div style="font-size:9pt">' + escHtml(nm) + (dt ? ' &nbsp;/&nbsp; ' + dt : '') + '</div>' +
+      '<div style="font-size:9pt"><b>Signed / Dated</b><br>' + role + '</div></td>';
+  };
+
+  const styles = '@page{size:A4;margin:1.9cm 1.6cm}body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;margin:0}p{margin:0 0 8pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:4pt;font-size:9.5pt;vertical-align:top}th{background:#D9D9D9;font-weight:bold;text-align:center}th.l{text-align:left}.intro{font-size:9.5pt;margin-bottom:10pt}.small{font-size:8.5pt}.nb td{border:none;padding:2pt}';
+
+  const body =
+    '<p class="intro">' + COLLEGE.intro + '</p>' +
+    '<table class="nb" style="margin-bottom:8pt"><tr>' +
+      '<td width="50%" class="small"><b>Apprentice:</b> ' + escHtml(d.a.name) + '</td>' +
+      '<td width="25%" class="small"><b>Month:</b> ' + d.label + '</td>' +
+      '<td width="25%" class="small"><b>Planned OTJ hours:</b> ' + d.a.target + '</td></tr></table>' +
+    '<table><tr><th width="12%">Date</th><th class="l" width="52%">Brief details of activity undertaken and skills gained</th>' +
+      '<th width="13%">' + COLLEGE.colHours + '</th><th width="13%">Hours to date</th><th width="10%">Initials</th></tr>' + rows +
+      '<tr><td colspan="3"><b>' + COLLEGE.colTotal + '</b></td><td align="center"><b>' + decHours(d.cf) + '</b></td><td>&nbsp;</td></tr></table>' +
+    '<p style="margin-top:12pt">' + COLLEGE.reflectPrompt + '</p>' +
+    '<table><tr><td style="height:150pt">' + (refl || '&nbsp;') + '</td></tr></table>' +
+    '<p class="small" style="margin-top:12pt">' + COLLEGE.declaration + '</p>' +
+    '<table style="margin-top:6pt"><tr>' + sig('a','Apprentice') + sig('e','Employer') + sig('t','Assessor') + '</tr></table>' +
+    '<p class="small" style="margin-top:12pt">' + COLLEGE.waiver + '</p>' +
+    '<table class="nb" style="margin-top:14pt"><tr><td class="small" width="34%">' + COLLEGE.ref + '</td>' +
+      '<td class="small" width="33%">&nbsp;</td><td class="small" width="33%" align="right">' + COLLEGE.updated + '</td></tr></table>';
+
+  return { styles, body, fileStem: 'BW3-8-4-' + d.fileStem };
+}
+
+/* ---------- branded version: same content, Little Puddings styling, plus extras ---------- */
+function buildBrandedForm(){
+  const d = formData(); if(!d) return null;
+  let run = d.bf;
+  const rows = d.list.length ? d.list.map(e => {
+    run += e.mins;
+    return '<tr>' +
+      '<td class="dt">' + colDate(e.date) + '</td>' +
+      '<td>' + escHtml(e.detail) +
+        '<div class="type">' + escHtml(e.type) + (e.start && e.end ? ' &middot; ' + e.start + ' to ' + e.end : '') + '</div></td>' +
+      '<td align="center"><b>' + decHours(e.mins) + '</b><div class="mini">' + fmt(e.mins) + '</div></td>' +
+      '<td align="center">' + decHours(run) + '</td>' +
+      '<td align="center">' + escHtml(d.initA) + '</td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="5" align="center" style="color:#6B6460;padding:14pt"><i>No activities logged this month.</i></td></tr>';
+
+  const notes = d.list.filter(e => e.comment);
+  const pct = Math.min(100, Math.round(d.cf / (d.a.target*60) * 100));
+
+  const sig = (k, role) => {
+    const img = d.rec.sig[k + 'Img'], nm = d.rec.sig[k] || '', dt = d.rec.sig[k + 'Date'] ? colDate(d.rec.sig[k + 'Date']) : '';
+    return '<td width="33%" valign="top" class="sigbox">' +
+      '<div class="siglabel">' + role + '</div>' +
+      '<div style="height:44pt">' + (img ? '<img src="' + img + '" height="40" style="max-width:150px">' : '&nbsp;') + '</div>' +
+      '<div class="sigrule">' + escHtml(nm) + '</div>' +
+      '<div class="mini">Signed / Dated' + (dt ? ' &nbsp;' + dt : '') + '</div></td>';
+  };
+
+  const styles =
+'@page{size:A4;margin:1.4cm 1.5cm}' +
+'body{font-family:Arial,sans-serif;font-size:10pt;color:#2B2B2B;background:#fff;margin:0}' +
+'p{margin:0 0 8pt}' +
+'h1{font-family:Georgia,serif;font-size:15pt;color:#fff;margin:0}' +
+'h2{font-family:Georgia,serif;font-size:11.5pt;color:#1A7A4A;margin:14pt 0 5pt;border-bottom:1.5pt solid #D4A017;padding-bottom:2pt}' +
+'table{border-collapse:collapse;width:100%}' +
+'.band{background:#1A7A4A;padding:9pt 11pt}' +
+'.band .sub{color:#E8F1EC;font-size:8.5pt;margin-top:1pt}' +
+'.metatab td{border:none;padding:5pt 8pt;background:#E8F1EC;font-size:9pt}' +
+'.metatab .k{color:#6B6460;font-size:7.5pt;text-transform:uppercase;letter-spacing:.4pt;display:block}' +
+'.log td,.log th{border:0.75pt solid #CCCCCC;padding:5pt;font-size:9.5pt;vertical-align:top}' +
+'.log th{background:#1A7A4A;color:#fff;font-family:Georgia,serif;font-size:9pt;text-align:center;font-weight:normal}' +
+'.log th.l{text-align:left}' +
+'.log .dt{white-space:nowrap;font-size:9pt}' +
+'.log .type{color:#6B6460;font-size:8pt;margin-top:1.5pt}' +
+'.mini{color:#6B6460;font-size:7.5pt}' +
+'.log tr.tot td{background:#FBF3DC;font-weight:bold;border-top:1.25pt solid #D4A017}' +
+'.note{border-left:2.5pt solid #D4A017;background:#FFFDF7;padding:5pt 8pt;margin-bottom:5pt}' +
+'.note .when{color:#6B6460;font-size:8pt;font-weight:bold}' +
+'.notelabel{font-size:8pt;color:#6B6460;text-transform:uppercase;letter-spacing:.4pt;font-weight:bold;margin-bottom:3pt}' +
+'.summary{border:0.75pt solid #CCCCCC;border-left:2.5pt solid #1A7A4A;padding:7pt 9pt;background:#fff;min-height:52pt}' +
+'.declare{background:#FBF3DC;border-left:2.5pt solid #D4A017;padding:7pt 9pt;font-size:9pt;margin-top:6pt}' +
+'.sigtab td{border:0.75pt solid #CCCCCC;padding:6pt}' +
+'.siglabel{font-size:7.5pt;color:#6B6460;text-transform:uppercase;letter-spacing:.4pt;font-weight:bold}' +
+'.sigrule{border-top:0.75pt solid #6B6460;padding-top:2pt;font-size:9.5pt}' +
+'.legal{font-size:7.5pt;color:#6B6460;margin-top:10pt;line-height:1.35}' +
+'.foot td{border:none;border-top:0.75pt solid #CCCCCC;padding:4pt 0 0;font-size:7.5pt;color:#6B6460}';
+
+  const body =
+    '<table class="nb"><tr><td class="band"><h1>Off the Job Learning Record</h1>' +
+      '<div class="sub">Little Puddings &nbsp;|&nbsp; Grounded &amp; Curious Ltd</div></td></tr></table>' +
+
+    '<table class="metatab" style="margin-top:7pt"><tr>' +
+      '<td width="34%"><span class="k">Apprentice</span><b>' + escHtml(d.a.name) + '</b></td>' +
+      '<td width="22%"><span class="k">Month</span><b>' + d.label + '</b></td>' +
+      '<td width="22%"><span class="k">Planned OTJ hours</span><b>' + d.a.target + '</b></td>' +
+      '<td width="22%"><span class="k">Progress</span><b>' + decHours(d.cf) + ' of ' + d.a.target + ' (' + pct + '%)</b></td>' +
+    '</tr></table>' +
+
+    '<p style="font-size:8.5pt;color:#6B6460;margin-top:7pt">' + COLLEGE.intro + '</p>' +
+
+    '<h2>Activity log</h2>' +
+    '<table class="log"><tr>' +
+      '<th width="11%">Date</th>' +
+      '<th class="l" width="50%">Brief details of activity undertaken and skills gained</th>' +
+      '<th width="14%">' + COLLEGE.colHours + '</th>' +
+      '<th width="14%">Hours to date</th>' +
+      '<th width="11%">Initials</th></tr>' +
+      (d.bf ? '<tr><td class="dt">&nbsp;</td><td style="color:#6B6460"><i>Brought forward from previous months</i></td>' +
+        '<td align="center">&nbsp;</td><td align="center"><b>' + decHours(d.bf) + '</b></td><td>&nbsp;</td></tr>' : '') +
+      rows +
+      '<tr class="tot"><td colspan="2" align="right">' + COLLEGE.colTotal + '</td>' +
+      '<td align="center">' + decHours(d.monthMins) + '</td><td align="center">' + decHours(d.cf) + '</td><td>&nbsp;</td></tr>' +
+    '</table>' +
+    '<div class="mini" style="margin-top:3pt">Hours shown as decimals as required, with the equivalent in hours and minutes beneath. ' +
+      (d.left ? decHours(d.left) + ' hours still to complete.' : 'Planned hours complete.') + '</div>' +
+
+    '<h2>What I have learnt and how it has helped me in my role</h2>' +
+    '<p style="font-size:8.5pt;color:#6B6460">' + COLLEGE.reflectPrompt + '</p>' +
+    (notes.length ? '<div class="notelabel">Notes recorded during the month</div>' +
+      notes.map(e => '<div class="note"><span class="when">' + colDate(e.date) + ' &middot; ' + escHtml(e.type) + '</span><br>' + escHtml(e.comment) + '</div>').join('') : '') +
+    '<div class="notelabel" style="margin-top:9pt">Overall summary for the month</div>' +
+    '<div class="summary">' + (d.rec.reflection ? escHtml(d.rec.reflection).replace(/\n/g,'<br>') : '&nbsp;') + '</div>' +
+
+    '<h2>Declaration</h2>' +
+    '<div class="declare">' + COLLEGE.declaration + '</div>' +
+    '<table class="sigtab" style="margin-top:7pt"><tr>' + sig('a','Apprentice') + sig('e','Employer') + sig('t','Assessor') + '</tr></table>' +
+
+    '<div class="legal">Planned off-the-job hours must be achieved by the end of the apprenticeship. Where planned and actual hours differ, the apprentice and employer sign a waiver explaining why. The minimum per apprenticeship is 187 hours; more is acceptable.</div>' +
+
+    '<table class="foot" style="margin-top:9pt"><tr>' +
+      '<td width="34%">Little Puddings internal record</td>' +
+      '<td width="33%" align="center">Off the job learning</td>' +
+      '<td width="33%" align="right">' + escHtml(d.a.name) + ' &nbsp;|&nbsp; ' + d.label + '</td></tr></table>';
+
+  return { styles, body, fileStem: d.fileStem };
+}
+
+/* ---------- export routes ---------- */
+function wordDoc(f){
+  return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8"><title>Apprentice Off the Job Learning Record</title>' +
+    '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->' +
+    '<style>' + f.styles + '</style></head><body>' + f.body + '</body></html>';
+}
+function downloadWord(f){
+  const blob = new Blob(['\ufeff', wordDoc(f)], { type:'application/msword' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = f.fileStem + '.doc';
+  link.click();
+  toast('Word document downloaded');
+}
+function printForm(f){
+  const w = window.open('', '_blank');
+  if(!w) return toast('Allow pop-ups to create the PDF');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + f.fileStem +
+    '</title><style>' + f.styles + '</style></head><body>' + f.body + '</body></html>');
+  w.document.close(); w.focus();
+  setTimeout(() => w.print(), 400);
+}
+function collegeReady(){
+  // The college document may only be produced once the month is signed off
+  // by both the apprentice and the employer.
+  const r = monthRec();
+  const apprenticeSigned = !!(r.sig.a && r.sig.a.trim()) || !!r.sig.aImg;
+  const employerSigned = !!(r.sig.e && r.sig.e.trim()) || !!r.sig.eImg;
+  return { ok: r.submitted && apprenticeSigned && employerSigned, apprenticeSigned, employerSigned, submitted: r.submitted };
+}
+function guardCollegeExport(){
+  // Only the manager can generate the file that goes to college.
+  if(!isManager()){
+    toast('Only the manager can produce the college document');
+    return false;
+  }
+  const c = collegeReady();
+  if(c.ok) return true;
+  const missing = [];
+  if(!c.submitted) missing.push('the month is marked as submitted');
+  if(!c.apprenticeSigned) missing.push('the apprentice has signed');
+  if(!c.employerSigned) missing.push('you have signed as employer');
+  toast('Not yet: needs ' + missing.join(', '));
+  return false;
+}
+function exportWord(){ if(!guardCollegeExport()) return; const f = buildBrandedForm(); if(!f) return toast('Select an apprentice first'); downloadWord(f); }
+function exportCollegePDF(){ if(!guardCollegeExport()) return; const f = buildBrandedForm(); if(!f) return toast('Select an apprentice first'); printForm(f); }
+function exportPlainWord(){ if(!guardCollegeExport()) return; const f = buildPlainForm(); if(!f) return toast('Select an apprentice first'); downloadWord(f); }
+function exportPlainPDF(){ if(!guardCollegeExport()) return; const f = buildPlainForm(); if(!f) return toast('Select an apprentice first'); printForm(f); }
+function escHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+/* ---------- session and role ----------
+   Interim: manager mode is unlocked with a PIN, because there is no sign-in yet.
+   Once Microsoft sign-in is wired in, replace resolveRole() with a check on the
+   signed-in account: the setting's own account is the manager, everyone else is
+   an apprentice locked to their own record. Nothing else in the file needs to change. */
+const session = {
+  role: 'apprentice',      // 'manager' | 'apprentice'
+  appId: null,             // which apprentice this session belongs to, when not manager
+  account: null            // populated by MSAL later
+};
+function isManager(){ return session.role === 'manager'; }
+function resolveRole(){
+  // MSAL version will live here:
+  //   session.account = msal.getActiveAccount();
+  //   session.role = (session.account.username === MANAGER_UPN) ? 'manager' : 'apprentice';
+  //   session.appId = matchApprenticeByEmail(session.account.username);
+  // Until then, role is whatever the PIN gate last set.
+  return session.role;
+}
+function toggleRole(){
+  if(isManager()){
+    session.role = 'apprentice';
+    session.appId = db.apprentices[0] ? db.apprentices[0].id : null;
+    supOpen = false;
+    render();
+    toast('Apprentice view');
+    return;
+  }
+  if(!db.pin){                                   // first run: set a PIN
+    const set = prompt('Set a manager PIN.\n\nThis keeps the supervision view and settings out of everyday reach until Microsoft sign-in is added.');
+    if(!set || !set.trim()) return;
+    db.pin = set.trim();
+    session.role = 'manager';
+    save(); render(); toast('Manager PIN set');
+    return;
+  }
+  const entered = prompt('Manager PIN');
+  if(entered === null) return;
+  if(entered.trim() !== db.pin){ toast('That PIN is not recognised'); return; }
+  session.role = 'manager';
+  render(); toast('Manager view');
+}
+
+/* ---------- monthly expectation, shown to the apprentice ---------- */
+function weeksInMonth(ym){
+  // count Mondays falling within the month: gives 4 or 5
+  const [y,m] = ym.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  let n = 0;
+  for(let d = 1; d <= last; d++){
+    if(new Date(y, m-1, d).getDay() === 1) n++;
+  }
+  return n;
+}
+function renderMonthTarget(monthMins, label){
+  const el = document.getElementById('monthTarget');
+  const wks = weeksInMonth(currentMonth);
+  const need = wks * 360;
+  const done = monthMins >= need;
+  const left = Math.max(0, need - monthMins);
+  const pct = Math.min(100, Math.round(monthMins / need * 100));
+
+  // days remaining in this month, if it is the current one
+  const today = new Date();
+  const thisMonth = today.toISOString().slice(0,7) === currentMonth;
+  const [y,m] = currentMonth.split('-').map(Number);
+  const daysLeft = thisMonth ? (new Date(y, m, 0).getDate() - today.getDate()) : 0;
+
+  let note;
+  if(done) note = 'Target met for ' + label + '. Anything further is a bonus.';
+  else if(thisMonth && daysLeft > 0) note = fmt(left) + ' still to log, with ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left in the month.';
+  else if(thisMonth) note = fmt(left) + ' still to log, and the month ends today.';
+  else note = fmt(left) + ' short for ' + label + '.';
+
+  el.innerHTML =
+    '<div class="mt' + (done ? ' done' : '') + '">' +
+      '<div class="mt-top">' +
+        '<div><span class="mt-big">' + fmt(monthMins) + '</span> <span class="mt-lab">logged of ' + (need/60) + ' hours</span></div>' +
+        '<div class="mt-lab">' + label + ' &middot; ' + wks + ' weeks &times; 6 hours</div>' +
+      '</div>' +
+      '<div class="mt-track"><span style="width:' + pct + '%"></span></div>' +
+      '<div class="mt-note">' + (done ? '\u2713 ' : '') + note + '</div>' +
+    '</div>';
+}
+/* ---------- weekly task set by the manager ----------
+   Stored as db.tasks[weekMondayISO] = [{ for:'all'|appId, text, link }] */
+function ensureTasks(){ if(!db.tasks) db.tasks = {}; return db.tasks; }
+function thisMonday(){ return mondayOf(new Date().toISOString().slice(0,10)); }
+function tasksForWeek(wk, appId){
+  return (ensureTasks()[wk] || []).filter(t => t.for === 'all' || t.for === appId);
+}
+function renderTaskCard(){
+  const card = document.getElementById('taskCard');
+  if(!card) return;
+  const body = document.getElementById('taskBody');
+  const editBtn = document.getElementById('taskEditBtn');
+  const mgr = isManager();
+  const wk = thisMonday();
+  editBtn.style.display = mgr ? '' : 'none';
+  const who = mgr ? currentApp : session.appId;
+  const mine = tasksForWeek(wk, who);
+
+  // has this person logged anything this week?
+  const loggedThisWeek = myEntries().some(e => mondayOf(e.date) === wk);
+  const nudge = (!mgr && !loggedThisWeek)
+    ? '<div class="flag" style="margin-top:.4rem"><b>Nothing logged this week yet.</b> Add your off-the-job activities while they are fresh.</div>'
+    : '';
+
+  let inner = nudge;
+  if(mine.length){
+    inner += mine.map(t =>
+      '<div class="note" style="margin-top:.4rem">' +
+        '<b>' + escapeHtml(t.text) + '</b>' +
+        (t.link ? '<br><a href="' + encodeURI(t.link) + '" target="_blank" rel="noopener" style="color:var(--green);font-weight:bold">Open the resource</a>' : '') +
+        (mgr && t.for !== 'all' ? '<span class="tag" style="margin-left:.4rem">this apprentice</span>' : '') +
+        (mgr && t.for === 'all' ? '<span class="tag" style="margin-left:.4rem">everyone</span>' : '') +
+      '</div>').join('');
+  } else {
+    inner += mgr
+      ? '<div class="hint">No task set for this week yet. Use "Set a task" to add one.</div>'
+      : (nudge ? '' : '<div class="hint">No task set for this week.</div>');
+  }
+  body.innerHTML = inner;
+  // show the card if the manager, or if there is a task or a nudge for the apprentice
+  card.style.display = (!mgr && !mine.length && !nudge) ? 'none' : '';
+}
+function openTaskEditor(){
+  if(!isManager()) return;
+  const wk = thisMonday();
+  document.getElementById('taskWeekLabel').textContent = shortDate(wk);
+  const sel = document.getElementById('taskFor');
+  sel.innerHTML = '<option value="all">Everyone</option>' +
+    db.apprentices.map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+  const existing = tasksForWeek(wk, currentApp)[0];
+  document.getElementById('taskText').value = existing ? existing.text : '';
+  document.getElementById('taskLink').value = existing ? (existing.link || '') : '';
+  document.getElementById('taskEditor').style.display = 'block';
+}
+function closeTaskEditor(){ document.getElementById('taskEditor').style.display = 'none'; }
+function saveTask(){
+  if(!isManager()) return;
+  const text = document.getElementById('taskText').value.trim();
+  if(!text) return toast('Enter the task first');
+  const link = document.getElementById('taskLink').value.trim();
+  const forWhom = document.getElementById('taskFor').value;
+  const wk = thisMonday();
+  const tasks = ensureTasks();
+  if(!tasks[wk]) tasks[wk] = [];
+  tasks[wk] = tasks[wk].filter(t => t.for !== forWhom);
+  tasks[wk].push({ for: forWhom, text, link });
+  closeTaskEditor(); save(); render(); toast('Task set for the week');
+}
+function clearTask(){
+  if(!isManager()) return;
+  const wk = thisMonday();
+  const tasks = ensureTasks();
+  const forWhom = document.getElementById('taskFor').value;
+  if(tasks[wk]) tasks[wk] = tasks[wk].filter(t => t.for !== forWhom);
+  closeTaskEditor(); save(); render(); toast('Task removed');
+}
+
+function mondayOf(d){
+  const x = new Date(d + 'T00:00:00');
+  const day = (x.getDay() + 6) % 7;          // Monday = 0
+  x.setDate(x.getDate() - day);
+  return x.toISOString().slice(0,10);
+}
+function addDays(iso, n){
+  const x = new Date(iso + 'T00:00:00');
+  x.setDate(x.getDate() + n);
+  return x.toISOString().slice(0,10);
+}
+function shortDate(iso){
+  const [y,m,d] = iso.split('-');
+  return d + '/' + m;
+}
+function weeklyUsage(){
+  const a = app(); if(!a) return null;
+  const all = myEntries();
+  if(!all.length && !a.start) return null;
+
+  const startISO = a.start || (all.length ? all[0].date : null);
+  if(!startISO) return null;
+  const firstMon = mondayOf(startISO);
+  const todayMon = mondayOf(new Date().toISOString().slice(0,10));
+
+  // bucket every entry into its week
+  const buckets = {};
+  all.forEach(e => { const k = mondayOf(e.date); buckets[k] = (buckets[k] || 0) + e.mins; });
+
+  const weeks = [];
+  let w = firstMon;
+  let guard = 0;
+  while(w <= todayMon && guard < 400){
+    weeks.push({ start:w, mins: buckets[w] || 0 });
+    w = addDays(w, 7); guard++;
+  }
+  const elapsed = weeks.length;
+  const total = all.reduce((s,e) => s + e.mins, 0);
+  const expected = elapsed * 360;                       // 6 hours per elapsed week
+  const avg = elapsed ? Math.round(total / elapsed) : 0;
+  const recent = weeks.slice(-6);
+  const recentAvg = recent.length ? Math.round(recent.reduce((s,x) => s + x.mins, 0) / recent.length) : 0;
+  const emptyRun = (() => {                             // consecutive weeks with nothing, most recent first
+    let n = 0;
+    for(let i = weeks.length - 1; i >= 0; i--){ if(weeks[i].mins === 0) n++; else break; }
+    return n;
+  })();
+  return { a, weeks, elapsed, total, expected, avg, recentAvg, recent, emptyRun, startISO };
+}
+function weeklyPanel(){
+  const u = weeklyUsage();
+  if(!u) return '<div class="note">Set an apprenticeship start date in Settings to track release time week by week.</div>';
+
+  const show = u.weeks.slice(-12);                      // last 12 weeks
+  const maxMins = Math.max(360, ...show.map(w => w.mins));
+  const bars = show.map(w => {
+    const pct = Math.round(w.mins / maxMins * 100);
+    const target = Math.round(360 / maxMins * 100);
+    const under = w.mins < 360;
+    return '<div class="supbar">' +
+      '<span class="nm" style="flex:0 0 74px;font-size:.8rem">w/c ' + shortDate(w.start) + '</span>' +
+      '<span class="tr" style="position:relative">' +
+        '<i style="width:' + pct + '%;background:' + (w.mins === 0 ? '#DDDDDD' : (under ? 'var(--gold)' : 'var(--green)')) + '"></i>' +
+        '<b style="position:absolute;top:0;bottom:0;left:' + target + '%;width:1.5px;background:var(--grey);opacity:.6"></b>' +
+      '</span>' +
+      '<span class="vv" style="flex:0 0 78px">' + (w.mins ? fmt(w.mins) : '<span class="gap">none</span>') + '</span>' +
+    '</div>';
+  }).join('');
+
+  const diff = u.total - u.expected;
+  const behind = diff < 0;
+  const posColour = behind ? 'var(--burgundy)' : 'var(--green)';
+
+  const flags = [];
+  if(u.emptyRun >= 3) flags.push('<b>' + u.emptyRun + ' consecutive weeks</b> with nothing logged at all. Worth asking whether the time is being released and taken.');
+  else if(u.emptyRun === 2) flags.push('Two weeks running with nothing logged.');
+  if(u.recentAvg < 240 && u.elapsed >= 4) flags.push('Recent average is <b>' + fmt(u.recentAvg) + ' per week</b> against a planned 6 hours. If this holds, the apprenticeship will finish short.');
+  if(behind && Math.abs(diff) >= 720) flags.push('Cumulatively <b>' + fmt(Math.abs(diff)) + ' behind</b> where the plan would put them by now.');
+  if(!behind && u.elapsed >= 4) flags.push('Ahead of plan by <b>' + fmt(diff) + '</b>. No concern here.');
+
+  return '<div class="supgrid">' +
+    '<div>' +
+      '<h3>Release time, week by week</h3>' +
+      bars +
+      '<div class="hint">Last ' + show.length + ' weeks. The grey line marks 6 hours. Weekly variation is normal and expected; the pattern over time is what matters.</div>' +
+    '</div>' +
+    '<div>' +
+      '<h3>Cumulative position</h3>' +
+      '<table>' +
+        '<tr><td>Weeks of learning elapsed</td><td class="num"><b>' + u.elapsed + '</b></td></tr>' +
+        '<tr><td>Hours the plan would expect by now</td><td class="num">' + fmt(u.expected) + '</td></tr>' +
+        '<tr><td>Hours actually logged</td><td class="num"><b>' + fmt(u.total) + '</b></td></tr>' +
+        '<tr><td><b>' + (behind ? 'Shortfall' : 'Ahead by') + '</b></td>' +
+          '<td class="num" style="color:' + posColour + '"><b>' + fmt(Math.abs(diff)) + '</b></td></tr>' +
+        '<tr><td>Average per week, whole apprenticeship</td><td class="num">' + fmt(u.avg) + '</td></tr>' +
+        '<tr><td>Average per week, last 6 weeks</td><td class="num">' + fmt(u.recentAvg) + '</td></tr>' +
+      '</table>' +
+      (flags.length ? '<div style="margin-top:.6rem">' + flags.map(f =>
+        '<div class="' + (f.indexOf('No concern') > -1 ? 'note' : 'flag') + '" style="font-size:.84rem">' + f + '</div>').join('') + '</div>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+/* ---------- supervision view (manager only) ---------- */
+let supOpen = false;
+function setPin(v){ const t = (v || '').trim(); if(!t) return toast('PIN cannot be blank'); db.pin = t; save(); toast('PIN updated'); }
+function toggleSup(){
+  if(!isManager()) return;
+  supOpen = !supOpen;
+  render();
+}
+function unlockSup(){ /* retained for the old gate; role controls access now */ }
+function renderSup(){
+  const body = document.getElementById('supBody');
+  const btn = document.getElementById('supToggle');
+  if(!supOpen){ body.style.display = 'none'; btn.textContent = 'Open'; return; }
+  body.style.display = 'block'; btn.textContent = 'Close';
+
+  const a = app(); if(!a) return;
+  const all = myEntries();
+  const month = monthEntries();
+  const tallyAll = {}, tallyMonth = {};
+  TYPES.forEach(t => { tallyAll[t] = 0; tallyMonth[t] = 0; });
+  all.forEach(e => { tallyAll[e.type] = (tallyAll[e.type] || 0) + e.mins; });
+  month.forEach(e => { tallyMonth[e.type] = (tallyMonth[e.type] || 0) + e.mins; });
+  const totAll = all.reduce((s,e) => s + e.mins, 0);
+  const maxAll = Math.max(1, ...Object.values(tallyAll));
+
+  const bars = TYPES.map(t => {
+    const v = tallyAll[t], mv = tallyMonth[t];
+    const pctOfTotal = totAll ? Math.round(v / totAll * 100) : 0;
+    return '<div class="supbar">' +
+      '<span class="nm">' + t + '</span>' +
+      '<span class="tr"><i class="' + (v ? '' : 'none') + '" style="width:' + Math.round(v / maxAll * 100) + '%"></i></span>' +
+      '<span class="vv">' + (v ? fmt(v) + ' (' + pctOfTotal + '%)' : '<span class="gap">none yet</span>') +
+        (mv ? '<br><span style="font-size:.72rem">' + fmt(mv) + ' this month</span>' : '') +
+      '</span>' +
+    '</div>';
+  }).join('');
+
+  const unused = TYPES.filter(t => !tallyAll[t]);
+  const topType = TYPES.slice().sort((x,y) => tallyAll[y] - tallyAll[x])[0];
+  const topShare = totAll ? Math.round(tallyAll[topType] / totAll * 100) : 0;
+
+  // monthly totals across the whole apprenticeship
+  const byMonth = {};
+  all.forEach(e => { const k = e.date.slice(0,7); byMonth[k] = (byMonth[k] || 0) + e.mins; });
+  const monthKeys = Object.keys(byMonth).sort();
+  const monthRows = monthKeys.length ? monthKeys.map(k => {
+    const submitted = db.months[currentApp + '|' + k] && db.months[currentApp + '|' + k].submitted;
+    const lbl = new Date(k + '-01').toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+    const need = weeksInMonth(k) * 360;
+    const met = byMonth[k] >= need;
+    const shortBy = need - byMonth[k];
+    return '<tr><td>' + lbl + '</td><td class="num">' + fmt(byMonth[k]) + '</td>' +
+      '<td class="num" style="color:' + (met ? 'var(--green)' : 'var(--burgundy)') + '">' +
+        (met ? '\u2713 met' : fmt(shortBy) + ' short') + '</td>' +
+      '<td>' + (submitted ? '<span class="pill submitted">Submitted</span>' : '<span class="pill draft">Draft</span>') + '</td></tr>';
+  }).join('') : '<tr><td colspan="4" class="empty">Nothing logged yet.</td></tr>';
+
+  const avg = monthKeys.length ? Math.round(totAll / monthKeys.length) : 0;
+  const editedCount = month.filter(e => e.edited).length;
+
+  // talking points
+  const points = [];
+  if(unused.length) points.push('No hours yet in: <b>' + unused.join(', ') + '</b>. Worth discussing whether these are planned.');
+  if(topShare >= 50 && totAll) points.push('<b>' + topShare + '%</b> of all hours sit in <b>' + topType + '</b>. An assessor may look for a broader mix.');
+  if(monthKeys.length >= 2){
+    const last = byMonth[monthKeys[monthKeys.length-1]], prev = byMonth[monthKeys[monthKeys.length-2]];
+    if(last < prev * 0.6) points.push('Hours dropped noticeably from the previous month.');
+  }
+  if(editedCount) points.push(editedCount + ' entr' + (editedCount === 1 ? 'y has' : 'ies have') + ' been edited this month.');
+  // quality of learning notes
+  const cms = month.filter(e => e.comment).map(e => e.comment.trim());
+  const thin = cms.filter(c => c.length < 45).length;
+  const dupes = cms.length - new Set(cms.map(c => c.toLowerCase())).size;
+  if(thin) points.push('<b>' + thin + '</b> learning note' + (thin === 1 ? ' is' : 's are') + ' very brief. Worth probing what was actually learnt.');
+  if(dupes) points.push('<b>' + dupes + '</b> learning note' + (dupes === 1 ? ' repeats' : 's repeat') + ' wording used elsewhere.');
+  const missing = month.filter(e => !e.comment).length;
+  if(missing) points.push('<b>' + missing + '</b> entr' + (missing === 1 ? 'y has' : 'ies have') + ' no learning note (logged before notes were required).');
+  const remaining = Math.max(0, a.target*60 - totAll);
+  if(remaining) points.push('<b>' + fmt(remaining) + '</b> still to complete. At the current average of ' + fmt(avg) + ' per month that is about <b>' + Math.ceil(remaining / Math.max(avg,1)) + ' more month' + (Math.ceil(remaining/Math.max(avg,1))===1?'':'s') + '</b>.');
+
+  body.innerHTML =
+    '<p class="hint" style="margin-top:0">For your use in supervision. Not included when the record is printed or sent to college.</p>' +
+    '<h3 style="margin-top:.2rem">Is the release time being used?</h3>' +
+    weeklyPanel() +
+    '<div style="border-top:1px solid var(--light);margin:1.1rem 0 .8rem"></div>' +
+    '<div class="supgrid">' +
+      '<div>' +
+        '<h3>Hours by activity type</h3>' + bars +
+        '<div class="hint">Bars show all hours to date. Percentages are the share of total learning.</div>' +
+      '</div>' +
+      '<div>' +
+        '<h3>Month by month</h3>' +
+        '<table><tr><th>Month</th><th style="text-align:right">Hours</th><th style="text-align:right">Target</th><th>Status</th></tr>' + monthRows +
+        '<tr class="tot"><th>Average</th><th class="num">' + fmt(avg) + '</th><th></th><th></th></tr></table>' +
+      '</div>' +
+    '</div>' +
+    (points.length ? '<h3 style="margin-top:1rem">Talking points</h3><ul style="margin:.3rem 0 0;padding-left:1.2rem;font-size:.88rem">' +
+      points.map(p => '<li style="margin-bottom:.3rem">' + p + '</li>').join('') + '</ul>' : '') +
+    '<div style="margin-top:1rem">' +
+      '<label for="supNotes">Supervision notes for ' + escapeHtml(a.name) + '</label>' +
+      '<textarea id="supNotes" style="min-height:90px" placeholder="Points discussed, actions agreed, targets set" oninput="onSupNotes(this.value)">' + escapeHtml(monthRec().supNotes || '') + '</textarea>' +
+      '<div class="hint">Saved against ' + new Date(currentMonth + '-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'}) + '. Private to this view.</div>' +
+    '</div>';
+}
+function onSupNotes(v){ monthRec().supNotes = v; save(); }
+
+/* ---------- render ---------- */
+function countWords(){
+  const w = monthRec().reflection.trim().split(/\s+/).filter(Boolean).length;
+  document.getElementById('wordCount').textContent = w + (w === 1 ? ' word' : ' words');
+}
+function render(){
+  // apprentice select
+  const sel = document.getElementById('apprentice');
+  sel.innerHTML = db.apprentices.map(a => '<option value="' + a.id + '"' + (a.id === currentApp ? ' selected' : '') + '>' + a.name + '</option>').join('');
+  document.getElementById('month').value = currentMonth;
+
+  const empty = db.apprentices.length === 0;
+  document.getElementById('firstRun').style.display = empty ? 'block' : 'none';
+  ['selectorCard','progressCard','addCard','entriesCard','supCard','reflectionCard','declarationCard'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = empty ? 'none' : '';
+  });
+  if(empty) return;
+
+  // ---- role: manager sees everything, apprentice sees only their own record ----
+  resolveRole();
+  const mgr = isManager();
+  if(!mgr){
+    // lock the session to one apprentice
+    if(!session.appId || !db.apprentices.find(x => x.id === session.appId)){
+      session.appId = db.apprentices[0].id;
+    }
+    currentApp = session.appId;
+    sel.value = currentApp;
+  }
+  document.getElementById('roleLabel').textContent = mgr ? 'Manager view' : 'Apprentice view';
+  document.getElementById('mgrBtn').textContent = mgr ? 'Leave manager mode' : 'Manager mode';
+  document.getElementById('supCard').style.display = mgr ? '' : 'none';
+  document.getElementById('importBtn').style.display = mgr ? '' : 'none';
+  sel.disabled = !mgr;
+  const settingsBtn = document.getElementById('settingsBtn');
+  if(settingsBtn) settingsBtn.style.display = mgr ? '' : 'none';
+  if(!mgr) document.getElementById('settingsPanel').style.display = 'none';
+
+  const a = app();
+  if(!a){ document.getElementById('entriesBody').innerHTML = '<tr><td colspan="6" class="empty">Add an apprentice in Settings to begin.</td></tr>'; return; }
+
+  document.getElementById('editTarget').value = a.target;
+  document.getElementById('editTargetName').textContent = a.name;
+  document.getElementById('editStart').value = a.start || '';
+  document.getElementById('editStartName').textContent = a.name;
+  document.getElementById('setPin').value = db.pin || '';
+
+  const rec = monthRec();
+  const locked = rec.submitted;
+  const bf = broughtForward();
+  const list = monthEntries();
+  const monthMins = list.reduce((s,e) => s + e.mins, 0);
+  const cf = bf + monthMins;
+  const targetMins = a.target * 60;
+  const left = Math.max(0, targetMins - cf);
+  const initA = initials(rec.sig.a || a.name);
+
+  // month label and print header
+  const label = new Date(currentMonth + '-01').toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+  document.getElementById('monthLabel').textContent = 'for ' + label;
+  document.getElementById('printHeader').innerHTML =
+    '<strong>' + a.name + '</strong> | ' + label + ' | Planned off-the-job hours: ' + a.target +
+    ' | Status: ' + (locked ? 'Submitted' : 'Draft');
+
+  // stats
+  renderMonthTarget(monthMins, label);
+  renderTaskCard();
+  document.getElementById('statMonth').textContent = fmt(monthMins);
+  document.getElementById('statBrought').textContent = fmt(bf);
+  document.getElementById('statCarried').textContent = fmt(cf);
+  document.getElementById('statLeft').textContent = fmt(left);
+  const pct = Math.min(100, Math.round(cf / targetMins * 100));
+  document.getElementById('trackFill').style.width = pct + '%';
+  document.getElementById('trackNote').textContent = pct + '% of ' + a.target + ' planned hours complete. At six hours per week of learning that is about ' + Math.ceil(left / 360) + ' weeks of off-the-job time remaining.';
+
+  // breakdown now lives in the supervision view only
+  document.getElementById('breakdown').innerHTML = '';
+  renderSup();
+
+  // table
+  let run = bf;
+  document.getElementById('entriesBody').innerHTML = list.length ? list.map(e => {
+    run += e.mins;
+    if(e.id === editingId && !locked) return editRowHtml(e, run);
+    return '<tr><td>' + ukDate(e.date) + '</td>' +
+      '<td>' + escapeHtml(e.detail) + '<br><span class="tag">' + e.type + '</span>' +
+        (e.edited ? '<span class="tag" style="background:#EFEFEF;color:var(--grey)">Edited ' + ukDate(e.edited.slice(0,10)) + '</span>' : '') +
+        (e.comment ? '<div style="margin-top:.35rem;padding-left:.5rem;border-left:2px solid var(--gold);font-size:.85rem;color:#4a4a4a"><b style="color:var(--grey);font-size:.72rem;text-transform:uppercase">What I learnt</b><br>' + escapeHtml(e.comment) + '</div>' : '<div class="flag" style="margin-top:.35rem;font-size:.8rem">No learning note added</div>') +
+      '</td>' +
+      '<td class="num">' + fmt(e.mins) + (e.start && e.end ? '<br><span style="font-size:.72rem;color:var(--grey)">' + e.start + ' to ' + e.end + '</span>' : '') + '</td>' +
+      '<td class="num">' + fmt(run) + '</td>' +
+      '<td>' + initA + '</td>' +
+      '<td class="no-print">' +
+        '<button class="btn-quiet btn-sm" onclick="startEdit(\'' + e.id + '\')" ' + (locked ? 'disabled' : '') + '>Edit</button> ' +
+        '<button class="btn-danger btn-sm" onclick="delEntry(\'' + e.id + '\')" ' + (locked ? 'disabled' : '') + '>x</button>' +
+      '</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="empty">No activities logged for ' + label + ' yet.</td></tr>';
+
+  document.getElementById('entriesFoot').innerHTML =
+    '<tr><th colspan="2" style="text-align:right">Hours this month</th><th class="num">' + fmt(monthMins) + '</th>' +
+    '<th style="text-align:right">Total hours to be carried forward</th><th colspan="2" class="num">' + fmt(cf) + '</th></tr>';
+
+  // reflection and signatures
+  const withC = list.filter(e => e.comment);
+  document.getElementById('compiled').innerHTML = withC.length
+    ? '<div class="hint" style="margin-top:0">Your notes from each activity this month. These carry into the Word document.</div>' +
+      withC.map(e => '<div style="border-left:3px solid var(--gold);padding:.4rem .6rem;margin-top:.4rem;background:#FFFDF7">' +
+        '<div style="font-size:.75rem;color:var(--grey)"><b>' + ukDate(e.date) + '</b> &middot; ' + e.type + '</div>' +
+        '<div style="font-size:.9rem;margin-top:.15rem">' + escapeHtml(e.comment) + '</div></div>').join('')
+    : '<div class="note">Your notes from each activity will appear here as you log them.</div>';
+  const ta = document.getElementById('reflection');
+  ta.value = rec.reflection; ta.readOnly = locked;
+  renderSignatures(locked, a);
+  countWords();
+
+  // status and locking
+  const pill = document.getElementById('statusPill');
+  pill.textContent = locked ? 'Submitted' : 'Draft';
+  pill.className = 'pill ' + (locked ? 'submitted' : 'draft');
+  document.getElementById('submitBtn').textContent = locked ? 'Unlock this month' : 'Mark month as submitted';
+  document.getElementById('addCard').style.opacity = locked ? .5 : 1;
+  document.getElementById('addCard').style.pointerEvents = locked ? 'none' : 'auto';
+
+  // college export gate
+  const c = collegeReady();
+  const canExport = mgr && c.ok;
+  ['expWordBtn','expPdfBtn'].forEach(id => {
+    const b = document.getElementById(id);
+    if(!b) return;
+    b.disabled = !canExport;
+    b.style.opacity = canExport ? 1 : .45;
+    b.style.cursor = canExport ? 'pointer' : 'not-allowed';
+  });
+  const es = document.getElementById('exportStatus');
+  if(es){
+    if(!mgr){
+      es.innerHTML = '<div class="hint no-print" style="margin-top:.5rem">The college document is generated and sent by the manager once the month is signed off.</div>';
+    } else if(c.ok){
+      es.innerHTML = '<div class="note" style="margin-top:.5rem">Signed off by apprentice and employer. The college document is ready to generate and send.</div>';
+    } else {
+      const need = [];
+      if(!c.submitted) need.push('mark the month as submitted');
+      if(!c.apprenticeSigned) need.push('apprentice signature');
+      if(!c.employerSigned) need.push('your signature as employer');
+      es.innerHTML = '<div class="flag" style="margin-top:.5rem">The college document unlocks once these are done: ' + need.join(', ') + '.</div>';
+    }
+  }
+
+  // waiver prompt when actual is drifting behind plan
+  const wb = document.getElementById('waiverBox');
+  wb.innerHTML = (cf > 0 && pct < 100 && left > 0 && monthMins < 24 * 60 && list.length > 0)
+    ? '<div class="note">Fewer than 24 hours logged this month. If planned and actual off-the-job hours end up different, the apprentice and employer must sign a waiver explaining why.</div>'
+    : '';
+
+  save();
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+/* ---------- init ---------- */
+document.getElementById('eType').innerHTML = TYPES.map(t => '<option>' + t + '</option>').join('');
+document.getElementById('eDate').value = new Date().toISOString().slice(0,10);
+render();
+</script>
+</body>
+</html>
