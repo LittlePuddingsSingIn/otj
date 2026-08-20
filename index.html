@@ -122,6 +122,7 @@
     textarea{border:none;padding:0;min-height:0;height:auto;overflow:visible}
   }
 </style>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 </head>
 <body>
 
@@ -132,6 +133,7 @@
       <div class="sub">Little Puddings | Grounded &amp; Curious Ltd &nbsp;&middot;&nbsp; <span id="roleLabel"></span></div>
     </div>
     <div class="grp" style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <button class="btn-ghost" id="cloudBtn" onclick="cloudSignIn()">Sign in to save</button>
       <button class="btn-gold" onclick="exportWord()">Word</button>
       <button class="btn-gold" onclick="exportCollegePDF()">PDF</button>
       <button class="btn-ghost" onclick="window.print()">Print this screen</button>
@@ -426,7 +428,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/* ---------- storage layer: swap this for the portal API later ---------- */
+/* ---------- storage layer: local cache + OneDrive sync ---------- */
 const KEY = 'lp_otj_v1';
 const mem = {};
 const store = {
@@ -439,6 +441,187 @@ const store = {
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch(e){ /* preview mode: memory only */ }
   }
 };
+
+/* ---------- Microsoft sign-in and OneDrive sync ----------
+   Each signed-in person saves to a single JSON file in their OWN OneDrive,
+   at /Apps/Little Puddings OTJ/otj-data.json. This uses only Files.ReadWrite
+   (own drive), so no broad permission and no shared-folder plumbing.
+   The manager account is recognised by email and sees the manager view. */
+const CLOUD = {
+  clientId: '5a871fc6-d672-401e-a5a7-f9fb349ecc99',
+  tenantId: 'a824d7c9-201d-4ae2-afea-e75389e576f0',
+  managerUpn: 'susanne@groundedandcurious.co.uk',
+  filePath: '/Apps/Little Puddings OTJ/otj-data.json',   // in the signed-in user's own drive
+  scopes: ['User.Read', 'Files.ReadWrite']
+};
+let msalApp = null;
+let cloudAccount = null;
+let cloudToken = null;
+let cloudFileId = null;         // resolved driveItem id once known
+let syncTimer = null;
+let lastSyncedJSON = null;
+
+function cloudConfigured(){ return typeof msal !== 'undefined' && CLOUD.clientId.indexOf('PASTE') === -1; }
+
+function initMsal(){
+  if(!cloudConfigured()) return;
+  msalApp = new msal.PublicClientApplication({
+    auth: {
+      clientId: CLOUD.clientId,
+      authority: 'https://login.microsoftonline.com/' + CLOUD.tenantId,
+      redirectUri: window.location.origin + window.location.pathname
+    },
+    cache: { cacheLocation: 'localStorage' }
+  });
+  // pick up an existing session if the person already signed in
+  const accts = msalApp.getAllAccounts();
+  if(accts.length){ cloudAccount = accts[0]; afterSignIn(true); }
+  updateCloudButton();
+}
+
+async function cloudSignIn(){
+  if(!cloudConfigured()){ toast('Cloud sign-in is not configured'); return; }
+  try {
+    if(cloudAccount){                       // already signed in -> sign out
+      await msalApp.logoutPopup({ account: cloudAccount });
+      cloudAccount = null; cloudToken = null; cloudFileId = null;
+      updateCloudButton(); toast('Signed out');
+      return;
+    }
+    const res = await msalApp.loginPopup({ scopes: CLOUD.scopes, prompt: 'select_account' });
+    cloudAccount = res.account;
+    await afterSignIn(false);
+  } catch(e){ toast('Sign-in was cancelled or failed'); }
+}
+
+async function getToken(){
+  if(!cloudAccount) return null;
+  try {
+    const res = await msalApp.acquireTokenSilent({ scopes: CLOUD.scopes, account: cloudAccount });
+    cloudToken = res.accessToken; return cloudToken;
+  } catch(e){
+    try {
+      const res = await msalApp.acquireTokenPopup({ scopes: CLOUD.scopes, account: cloudAccount });
+      cloudToken = res.accessToken; return cloudToken;
+    } catch(e2){ return null; }
+  }
+}
+
+function graphUrlForFile(){
+  // colon-path addressing in the signed-in user's own drive
+  return 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodeURI(CLOUD.filePath) + ':';
+}
+
+async function cloudLoad(){
+  const tok = await getToken(); if(!tok) return null;
+  try {
+    const r = await fetch(graphUrlForFile() + '/content', { headers: { Authorization: 'Bearer ' + tok } });
+    if(r.status === 404) return null;         // no file yet, first time
+    if(!r.ok) throw new Error('load ' + r.status);
+    return await r.json();
+  } catch(e){ return null; }
+}
+
+async function cloudSave(data){
+  const tok = await getToken(); if(!tok) return false;
+  const body = JSON.stringify(data);
+  if(body === lastSyncedJSON) return true;    // nothing changed
+  try {
+    const r = await fetch(graphUrlForFile() + '/content', {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body
+    });
+    if(!r.ok) throw new Error('save ' + r.status);
+    lastSyncedJSON = body;
+    setCloudStatus('Saved to OneDrive');
+    return true;
+  } catch(e){ setCloudStatus('Saved on this device (cloud retry pending)'); return false; }
+}
+
+function whoSignedIn(){ return cloudAccount ? (cloudAccount.username || '').toLowerCase() : null; }
+
+async function afterSignIn(silent){
+  updateCloudButton();
+  setCloudStatus('Connecting to OneDrive...');
+  // set the role from the signed-in identity
+  const who = whoSignedIn();
+  if(who === CLOUD.managerUpn.toLowerCase()){
+    session.role = 'manager';
+  } else {
+    session.role = 'apprentice';
+  }
+  // load their cloud copy and merge with anything logged offline
+  const cloud = await cloudLoad();
+  if(cloud && cloud.apprentices){
+    // cloud is the source of truth for a returning user; keep any offline-only entries
+    mergeInto(cloud);
+    db = cloud;
+    lastSyncedJSON = JSON.stringify(db);
+    store.write(db);
+  } else {
+    // first time in the cloud: push what we have (usually empty for an apprentice)
+    await cloudSave(db);
+  }
+  // an apprentice is bound to their own single record; ensure one exists
+  bindApprenticeIdentity();
+  currentApp = (session.role === 'manager')
+    ? (db.apprentices[0] ? db.apprentices[0].id : null)
+    : session.appId;
+  setCloudStatus('Signed in as ' + (cloudAccount.name || who));
+  render();
+  if(!silent) toast('Signed in, your record will save automatically');
+}
+
+/* keep any entries made offline that are not yet in the cloud copy */
+function mergeInto(cloud){
+  const localDb = store.read();
+  if(!localDb || !localDb.entries) return;
+  cloud.entries = cloud.entries || [];
+  localDb.entries.forEach(e => {
+    const dup = cloud.entries.find(x => x.id === e.id ||
+      (x.appId === e.appId && x.date === e.date && x.detail === e.detail && x.mins === e.mins));
+    if(!dup) cloud.entries.push(e);
+  });
+}
+
+/* an apprentice's file holds exactly their own record; bind session.appId to it */
+function bindApprenticeIdentity(){
+  if(session.role === 'manager') return;
+  const who = whoSignedIn();
+  // match an existing apprentice by stored email, else create their record
+  let me = db.apprentices.find(a => (a.email || '').toLowerCase() === who);
+  if(!me){
+    if(db.apprentices.length === 1 && !db.apprentices[0].email){
+      me = db.apprentices[0]; me.email = who;      // adopt the single existing record
+    } else {
+      const nm = cloudAccount.name || who.split('@')[0];
+      me = { id: uid(), name: nm, email: who, target: 187, start: '' };
+      db.apprentices.push(me);
+    }
+    store.write(db);
+  }
+  session.appId = me.id;
+}
+
+function updateCloudButton(){
+  const b = document.getElementById('cloudBtn');
+  if(!b) return;
+  if(!cloudConfigured()){ b.style.display = 'none'; return; }
+  b.textContent = cloudAccount ? ('Signed in: ' + (cloudAccount.name || 'account')) : 'Sign in to save';
+}
+function setCloudStatus(msg){
+  const el = document.getElementById('savedAt');
+  if(el) el.textContent = msg;
+}
+
+/* debounced cloud save, called from save() */
+function queueCloudSave(){
+  if(!cloudAccount) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => cloudSave(db), 900);
+}
+
 
 const TYPES = ['Training or e-learning','Shadowing or observation','Reading or research','Tutorial or mentor session','College or coursework','New practical skill','Meeting or briefing','Visit or outing'];
 
@@ -478,8 +661,10 @@ function ukDate(iso){
 }
 function save(){
   store.write(db);
+  queueCloudSave();
   const t = new Date();
-  document.getElementById('savedAt').textContent = 'Saved at ' + t.toTimeString().slice(0,5);
+  const el = document.getElementById('savedAt');
+  if(el && !cloudAccount) el.textContent = 'Saved on this device at ' + t.toTimeString().slice(0,5);
 }
 function toast(msg){
   const el = document.getElementById('toast');
@@ -1118,11 +1303,8 @@ const session = {
 };
 function isManager(){ return session.role === 'manager'; }
 function resolveRole(){
-  // MSAL version will live here:
-  //   session.account = msal.getActiveAccount();
-  //   session.role = (session.account.username === MANAGER_UPN) ? 'manager' : 'apprentice';
-  //   session.appId = matchApprenticeByEmail(session.account.username);
-  // Until then, role is whatever the PIN gate last set.
+  // If signed in to Microsoft, the account decides the role (set in afterSignIn).
+  // If not signed in, fall back to the PIN gate so the tool still works offline.
   return session.role;
 }
 function toggleRole(){
@@ -1641,6 +1823,7 @@ function escapeHtml(s){
 document.getElementById('eType').innerHTML = TYPES.map(t => '<option>' + t + '</option>').join('');
 document.getElementById('eDate').value = new Date().toISOString().slice(0,10);
 render();
+try { initMsal(); } catch(e){ /* offline or library blocked: tool still works locally */ }
 </script>
 </body>
 </html>
