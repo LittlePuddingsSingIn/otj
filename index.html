@@ -212,6 +212,7 @@
         <button class="btn-quiet" id="settingsBtn" style="width:100%" onclick="openSettings()">Settings</button>
       </div>
     </div>
+    <div id="lastLogged" class="no-print" style="margin-top:.6rem"></div>
     <div id="settingsPanel" style="display:none;margin-top:.9rem;border-top:1px solid var(--light);padding-top:.9rem">
       <div class="row">
         <div class="wide">
@@ -834,6 +835,19 @@ function myEntries(){
   return db.entries.filter(e => e.appId === currentApp).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
 function monthEntries(){ return myEntries().filter(e => e.date.slice(0,7) === currentMonth); }
+/* when did this apprentice most recently log anything, and how long ago */
+function lastLoggedInfo(appId){
+  const stamps = db.entries.filter(e => e.appId === appId && e.logged).map(e => e.logged).sort();
+  if(!stamps.length) return null;
+  const last = new Date(stamps[stamps.length - 1]);
+  const days = Math.floor((Date.now() - last.getTime()) / 86400000);
+  let ago;
+  if(days <= 0) ago = 'today';
+  else if(days === 1) ago = 'yesterday';
+  else if(days < 14) ago = days + ' days ago';
+  else ago = Math.floor(days/7) + ' weeks ago';
+  return { date: last, days, ago, label: last.toLocaleDateString('en-GB',{day:'numeric',month:'short'}) };
+}
 function broughtForward(){
   return myEntries().filter(e => e.date.slice(0,7) < currentMonth).reduce((s,e) => s + e.mins, 0);
 }
@@ -964,7 +978,7 @@ function addEntry(){
     document.getElementById('eComment').focus();
     return;
   }
-  const entry = { id:uid(), appId:currentApp, date, detail, type, mins, comment };
+  const entry = { id:uid(), appId:currentApp, date, detail, type, mins, comment, logged: new Date().toISOString() };
   if(!manualMode){ entry.start = document.getElementById('eStart').value; entry.end = document.getElementById('eEnd').value; }
   db.entries.push(entry);
   document.getElementById('eDetail').value = '';
@@ -1879,6 +1893,22 @@ function render(){
     sel.value = currentApp;
   }
   document.getElementById('roleLabel').textContent = mgr ? 'Manager view' : 'Apprentice view';
+  const ll = document.getElementById('lastLogged');
+  if(ll){
+    if(mgr){
+      const info = lastLoggedInfo(currentApp);
+      const a = app();
+      if(!info){
+        ll.innerHTML = '<div class="flag">' + escapeHtml(a ? a.name : 'This apprentice') + ' has not logged anything yet.</div>';
+      } else {
+        const stale = info.days >= 7;
+        ll.innerHTML = '<div class="' + (stale ? 'flag' : 'note') + '">Last logged an activity ' + info.ago +
+          ' (' + info.label + ').' + (stale ? ' A reminder might be worth sending.' : '') + '</div>';
+      }
+    } else {
+      ll.innerHTML = '';
+    }
+  }
   document.getElementById('mgrBtn').textContent = mgr ? 'Leave manager mode' : 'Manager mode';
   document.getElementById('supCard').style.display = mgr ? '' : 'none';
   document.getElementById('importBtn').style.display = mgr ? '' : 'none';
