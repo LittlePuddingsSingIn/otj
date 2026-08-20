@@ -121,10 +121,42 @@
     td{font-size:10pt}
     textarea{border:none;padding:0;min-height:0;height:auto;overflow:visible}
   }
+  /* welcome / login gate */
+  #welcomeGate{position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#125634,#1A7A4A);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;text-align:center}
+  #welcomeGate.hidden{display:none}
+  .wg-card{background:#fff;border-radius:14px;max-width:460px;width:100%;padding:2.4rem 2rem;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+  .wg-logo{font-family:Arial;font-weight:bold;color:var(--green);font-size:.95rem;letter-spacing:.5px;text-transform:uppercase;margin-bottom:1rem}
+  .wg-title{font-family:Georgia,serif;color:var(--green);font-size:1.6rem;margin:0 0 .8rem}
+  .wg-sub{color:var(--ink);font-size:.95rem;line-height:1.55;margin:0 0 1.6rem}
+  .wg-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:.85rem 1.4rem;font-size:1rem;font-weight:bold;cursor:pointer;width:100%;font-family:Arial}
+  .wg-btn:hover{background:#125634}
+  .wg-btn:disabled{opacity:.5;cursor:not-allowed}
+  .wg-note{font-size:.85rem;color:var(--grey);margin:1rem 0 .5rem;min-height:1.2em}
+  .wg-link{background:none;border:none;color:var(--grey);text-decoration:underline;cursor:pointer;font-size:.85rem;font-family:Arial;padding:.3rem}
+  .wg-link:hover{color:var(--green)}
+  .wg-foot{color:rgba(255,255,255,.75);font-size:.8rem;margin-top:1.4rem}
 </style>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/dist/msal-browser.min.js"></script>
+<script>
+  // Fallback to Microsoft's own CDN if jsDelivr is blocked
+  if (typeof msal === 'undefined') {
+    document.write('<scr'+'ipt src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></scr'+'ipt>');
+  }
+</script>
 </head>
 <body>
+
+<div id="welcomeGate">
+  <div class="wg-card">
+    <div class="wg-logo">Little Puddings</div>
+    <h1 class="wg-title">Off-the-Job Learning Record</h1>
+    <p class="wg-sub">Log your off-the-job hours, keep your reflections, and produce your monthly record. Sign in with your Little Puddings email and your record saves automatically.</p>
+    <button id="wgSignIn" class="wg-btn" onclick="cloudSignIn()">Sign in with your Little Puddings account</button>
+    <p class="wg-note" id="wgNote"></p>
+    <button id="wgOffline" class="wg-link" onclick="useOffline()">Continue without signing in</button>
+  </div>
+  <div class="wg-foot">Grounded &amp; Curious Ltd</div>
+</div>
 
 <header class="app no-print">
   <div class="wrap bar">
@@ -461,10 +493,11 @@ let cloudFileId = null;         // resolved driveItem id once known
 let syncTimer = null;
 let lastSyncedJSON = null;
 
-function cloudConfigured(){ return typeof msal !== 'undefined' && CLOUD.clientId.indexOf('PASTE') === -1; }
+function cloudConfigured(){ return CLOUD.clientId.indexOf('PASTE') === -1; }
+function cloudLibReady(){ return typeof msal !== 'undefined'; }
 
 function initMsal(){
-  if(!cloudConfigured()) return;
+  if(!cloudConfigured() || !cloudLibReady()) return;
   msalApp = new msal.PublicClientApplication({
     auth: {
       clientId: CLOUD.clientId,
@@ -480,12 +513,17 @@ function initMsal(){
 }
 
 async function cloudSignIn(){
+  if(typeof msal === 'undefined'){
+    toast('Sign-in library could not load. If you are on the work network, try from home or mobile data.');
+    return;
+  }
   if(!cloudConfigured()){ toast('Cloud sign-in is not configured'); return; }
   try {
     if(cloudAccount){                       // already signed in -> sign out
       await msalApp.logoutPopup({ account: cloudAccount });
       cloudAccount = null; cloudToken = null; cloudFileId = null;
-      updateCloudButton(); toast('Signed out');
+      session.role = 'apprentice'; session.appId = null;
+      updateCloudButton(); showGate(); toast('Signed out');
       return;
     }
     const res = await msalApp.loginPopup({ scopes: CLOUD.scopes, prompt: 'select_account' });
@@ -569,6 +607,7 @@ async function afterSignIn(silent){
     ? (db.apprentices[0] ? db.apprentices[0].id : null)
     : session.appId;
   setCloudStatus('Signed in as ' + (cloudAccount.name || who));
+  hideGate();
   render();
   if(!silent) toast('Signed in, your record will save automatically');
 }
@@ -608,7 +647,43 @@ function updateCloudButton(){
   const b = document.getElementById('cloudBtn');
   if(!b) return;
   if(!cloudConfigured()){ b.style.display = 'none'; return; }
+  if(!cloudLibReady()){ b.textContent = 'Sign-in unavailable here'; b.title = 'The Microsoft sign-in library could not load, often the work network blocking it. Try from home or mobile data.'; return; }
   b.textContent = cloudAccount ? ('Signed in: ' + (cloudAccount.name || 'account')) : 'Sign in to save';
+}
+
+/* ---------- welcome gate ---------- */
+function showGate(){
+  const g = document.getElementById('welcomeGate');
+  if(g) g.classList.remove('hidden');
+  updateGateState();
+}
+function hideGate(){
+  const g = document.getElementById('welcomeGate');
+  if(g) g.classList.add('hidden');
+}
+function updateGateState(){
+  const btn = document.getElementById('wgSignIn');
+  const note = document.getElementById('wgNote');
+  const offline = document.getElementById('wgOffline');
+  if(!btn) return;
+  if(cloudAccount){ hideGate(); return; }
+  if(!cloudLibReady()){
+    btn.disabled = true;
+    btn.textContent = 'Sign-in unavailable on this network';
+    note.textContent = 'The Microsoft sign-in could not load, usually the work network blocking it. Try from home or mobile data, or continue without signing in (this device only).';
+    offline.style.display = '';
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Sign in with your Little Puddings account';
+    note.textContent = '';
+    offline.style.display = '';
+  }
+}
+let offlineMode = false;
+function useOffline(){
+  offlineMode = true;
+  hideGate();
+  toast('Working on this device only, nothing will sync');
 }
 function setCloudStatus(msg){
   const el = document.getElementById('savedAt');
@@ -1823,7 +1898,14 @@ function escapeHtml(s){
 document.getElementById('eType').innerHTML = TYPES.map(t => '<option>' + t + '</option>').join('');
 document.getElementById('eDate').value = new Date().toISOString().slice(0,10);
 render();
-try { initMsal(); } catch(e){ /* offline or library blocked: tool still works locally */ }
+showGate();
+(function waitForMsal(tries){
+  try {
+    if(cloudLibReady()){ initMsal(); updateCloudButton(); updateGateState(); return; }
+  } catch(e){}
+  if(tries > 0) setTimeout(() => waitForMsal(tries - 1), 400);
+  else { updateCloudButton(); updateGateState(); }   // give up gracefully
+})(12);
 </script>
 </body>
 </html>
