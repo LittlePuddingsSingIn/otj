@@ -541,18 +541,26 @@ async function initMsal(){
       authority: 'https://login.microsoftonline.com/' + CLOUD.tenantId,
       redirectUri: 'https://littlepuddingssingin.github.io/otj/'
     },
-    cache: { cacheLocation: 'localStorage' },
-    system: { allowRedirectInIframe: false }
+    cache: { cacheLocation: 'localStorage' }
   });
+  var handled = null;
   try {
-    // MSAL v2 must settle any pending redirect before use
+    // catch the response when the page returns from the Microsoft sign-in
     if(typeof msalApp.handleRedirectPromise === 'function'){
-      await msalApp.handleRedirectPromise();
+      handled = await msalApp.handleRedirectPromise();
     }
-  } catch(e){ /* no pending redirect */ }
-  // pick up an existing session if the person already signed in
-  const accts = msalApp.getAllAccounts();
-  if(accts.length){ cloudAccount = accts[0]; await afterSignIn(true); }
+  } catch(e){ console.log('OTJ redirect error:', (e && (e.errorMessage || e.message)) || e); }
+
+  if(handled && handled.account){
+    // just came back from a fresh sign-in
+    cloudAccount = handled.account;
+    msalApp.setActiveAccount(cloudAccount);
+    await afterSignIn(false);
+  } else {
+    // returning visitor with a cached session
+    var accts = msalApp.getAllAccounts();
+    if(accts.length){ cloudAccount = accts[0]; msalApp.setActiveAccount(cloudAccount); await afterSignIn(true); }
+  }
   updateCloudButton();
   updateGateState();
 }
@@ -565,18 +573,12 @@ async function cloudSignIn(){
   if(!cloudConfigured()){ toast('Cloud sign-in is not configured'); return; }
   try {
     if(cloudAccount){                       // already signed in -> sign out
-      await msalApp.logoutPopup({ account: cloudAccount });
-      cloudAccount = null; cloudToken = null;
-      session.role = 'apprentice'; session.appId = null;
-      updateCloudButton(); showGate(); toast('Signed out');
-      return;
+      cloudToken = null; session.role = 'apprentice'; session.appId = null;
+      await msalApp.logoutRedirect({ account: cloudAccount });
+      return;   // page navigates away to sign out
     }
-    const res = await msalApp.loginPopup({ scopes: CLOUD.scopes, prompt: 'select_account' });
-    // prefer the account from the cache, which carries the full idTokenClaims
-    var full = msalApp.getAllAccounts().find(function(a){ return a.homeAccountId === res.account.homeAccountId; });
-    cloudAccount = full || res.account;
-    msalApp.setActiveAccount(cloudAccount);
-    await afterSignIn(false);
+    // full-page redirect to Microsoft, avoids the popup-in-popup block entirely
+    await msalApp.loginRedirect({ scopes: CLOUD.scopes, prompt: 'select_account' });
   } catch(e){
     const msg = (e && (e.errorMessage || e.message)) ? (e.errorMessage || e.message) : 'unknown error';
     console.log('OTJ sign-in error:', msg);
@@ -591,8 +593,9 @@ async function getToken(){
     cloudToken = res.accessToken; return cloudToken;
   } catch(e){
     try {
-      const res = await msalApp.acquireTokenPopup({ scopes: CLOUD.scopes, account: cloudAccount });
-      cloudToken = res.accessToken; return cloudToken;
+      // if silent fails, fall back to a full-page redirect rather than a popup
+      await msalApp.acquireTokenRedirect({ scopes: CLOUD.scopes, account: cloudAccount });
+      return null;   // page navigates away and comes back
     } catch(e2){ return null; }
   }
 }
