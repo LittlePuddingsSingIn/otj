@@ -161,8 +161,8 @@
     <div class="grp" style="display:flex;gap:.5rem;flex-wrap:wrap">
       <button class="btn-ghost" id="cloudBtn" onclick="cloudSignIn()">Sign in to save</button>
       <button class="btn-ghost" id="refreshBtn" onclick="refreshAll()" style="display:none">Refresh</button>
-      <button class="btn-gold" onclick="exportWord()">Word</button>
-      <button class="btn-gold" onclick="exportCollegePDF()">PDF</button>
+      <button class="btn-gold" id="hdrWordBtn" onclick="exportWord()">Word</button>
+      <button class="btn-gold" id="hdrPdfBtn" onclick="exportCollegePDF()">PDF</button>
       <button class="btn-ghost" onclick="window.print()">Print this screen</button>
       <button class="btn-ghost" onclick="exportJSON()">Back up data</button>
       <button class="btn-ghost" id="mgrBtn" onclick="toggleRole()">Manager mode</button>
@@ -445,7 +445,10 @@
   <div class="card sup no-print" id="supCard">
     <div class="toolbar">
       <h2 style="margin:0">Supervision view</h2>
-      <button class="btn-quiet btn-sm" id="supToggle" onclick="toggleSup()">Open</button>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn-quiet btn-sm" id="supPrintBtn" onclick="printSupervision()" style="display:none">Print or save</button>
+        <button class="btn-quiet btn-sm" id="supToggle" onclick="toggleSup()">Open</button>
+      </div>
     </div>
     <div id="supBody" style="display:none;margin-top:.8rem"></div>
     <div id="supGate" style="display:none;margin-top:.8rem">
@@ -716,6 +719,9 @@ async function afterSignIn(silent){
       const fileApps = rec.apprentices || [];
       fileApps.forEach(a => {
         const em = (a.email || '').toLowerCase();
+        // ignore the manager's own account and any non-groundedandcurious (personal) account
+        if(em === CLOUD.managerUpn.toLowerCase()) return;
+        if(em && em.indexOf('@groundedandcurious.co.uk') === -1) return;
         let keep;
         if(em && byEmail[em]){
           keep = byEmail[em];                 // already have this person; entries will re-point to them
@@ -760,18 +766,30 @@ async function afterSignIn(silent){
   } else {
     const key = emailKey(who);
     session.cloudKey = key;
+    const localEntries = (db.entries || []).slice();     // whatever is on this device right now
     const cloud = await loadApprenticeFile(key);
     if(cloud && cloud.apprentices){
-      mergeInto(cloud);
+      // keep the device's entries; add any cloud entries not already present (by date+detail+mins)
+      const cloudEntries = cloud.entries || [];
+      const combined = localEntries.slice();
+      cloudEntries.forEach(ce => {
+        if(!combined.find(le => le.date === ce.date && le.detail === ce.detail && le.mins === ce.mins)){
+          combined.push(ce);
+        }
+      });
+      cloud.entries = combined;
+      // keep local months/tasks too where the cloud lacks them
+      db.months = Object.assign({}, db.months, cloud.months || {});
+      cloud.months = db.months;
       db = cloud;
       store.write(db);
+      console.log('OTJ: after sign-in you have ' + db.entries.length + ' entries (device had ' + localEntries.length + ', cloud had ' + cloudEntries.length + ')');
     }
     bindApprenticeIdentity();
-    // make sure the apprentice record carries its own email so the manager view names it
     const me = db.apprentices.find(a => a.id === session.appId);
     if(me && !me.email) me.email = who;
     currentApp = session.appId;
-    await saveApprenticeFile(key, db);   // ensure their file exists in the shared folder
+    await saveApprenticeFile(key, db);   // save the COMBINED data back, so nothing is lost
     setCloudStatus('Signed in as ' + (cloudAccount.name || who));
   }
   hideGate();
@@ -844,6 +862,23 @@ function bindApprenticeIdentity(){
     store.write(db);
   }
   session.appId = me.id;
+  // self-heal: in an apprentice's own file, every entry belongs to them.
+  // If any entry points at an id that is not their current record (e.g. left over
+  // from an earlier version), re-point it so it is not orphaned when it syncs.
+  let healed = 0;
+  (db.entries || []).forEach(e => {
+    if(e.appId !== me.id){ e.appId = me.id; healed++; }
+  });
+  // also re-key any month records to the current id
+  if(db.months){
+    const fixed = {};
+    Object.keys(db.months).forEach(k => {
+      const parts = k.split('|');
+      fixed[me.id + '|' + parts[1]] = db.months[k];
+    });
+    db.months = fixed;
+  }
+  if(healed){ console.log('OTJ: re-linked ' + healed + ' of your entries to your record'); store.write(db); }
 }
 
 function updateCloudButton(){
@@ -2006,12 +2041,49 @@ function toggleSup(){
   supOpen = !supOpen;
   render();
 }
+function printSupervision(){
+  const a = app();
+  if(!a){ toast('Select an apprentice first'); return; }
+  const supHtml = document.getElementById('supBody').innerHTML;
+  const today = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+  const win = window.open('', '_blank');
+  if(!win){ toast('Please allow pop-ups to print'); return; }
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Supervision - ' + escHtml(formName(a)) + '</title>' +
+    '<style>' +
+    'body{font-family:Arial,Helvetica,sans-serif;color:#2B2B2B;max-width:800px;margin:1.5rem auto;padding:0 1rem;line-height:1.5}' +
+    'h1{font-family:Georgia,serif;color:#1A7A4A;font-size:1.5rem;margin:0 0 .2rem}' +
+    'h2,h3{font-family:Georgia,serif;color:#1A7A4A}' +
+    '.meta{color:#6B6460;font-size:.9rem;margin-bottom:1.2rem;border-bottom:2px solid #D4A017;padding-bottom:.6rem}' +
+    '.supbar{display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.85rem}' +
+    '.supbar .nm{width:38%}.supbar .tr{flex:1;background:#E8F1EC;border-radius:6px;height:12px;overflow:hidden}' +
+    '.supbar .tr i{display:block;height:100%;background:#1A7A4A}.supbar .tr i.none{background:transparent}' +
+    '.supbar .vv{width:30%;text-align:right;font-size:.78rem}.gap{color:#A13A2A}' +
+    'table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.85rem}' +
+    'th,td{border:1px solid #ddd;padding:.35rem .5rem;text-align:left}td.num{text-align:right}' +
+    '.pill{font-size:.7rem;padding:.1rem .45rem;border-radius:20px;background:#E8F1EC}' +
+    '.pill.submitted{background:#1A7A4A;color:#fff}.pill.draft{background:#FBF3DC;color:#8a6a00}' +
+    'ul{padding-left:1.2rem}li{margin:.25rem 0}.hint{color:#6B6460;font-size:.85rem}' +
+    '.supgrid{margin-top:1rem}' +
+    '@media print{body{margin:0}button{display:none}}' +
+    '</style></head><body>' +
+    '<h1>Supervision summary</h1>' +
+    '<div class="meta"><b>' + escHtml(a.name) + '</b> &middot; prepared ' + today + ' &middot; Little Puddings</div>' +
+    supHtml +
+    '<p class="hint" style="margin-top:2rem">Prepared for supervision discussion. Not the college submission.</p>' +
+    '</body></html>'
+  );
+  win.document.close();
+  setTimeout(() => { win.focus(); win.print(); }, 400);
+}
 function unlockSup(){ /* retained for the old gate; role controls access now */ }
 function renderSup(){
   const body = document.getElementById('supBody');
   const btn = document.getElementById('supToggle');
-  if(!supOpen){ body.style.display = 'none'; btn.textContent = 'Open'; return; }
+  const printBtn = document.getElementById('supPrintBtn');
+  if(!supOpen){ body.style.display = 'none'; btn.textContent = 'Open'; if(printBtn) printBtn.style.display = 'none'; return; }
   body.style.display = 'block'; btn.textContent = 'Close';
+  if(printBtn) printBtn.style.display = '';
 
   const a = app(); if(!a) return;
   const all = myEntries();
@@ -2097,7 +2169,7 @@ function renderSup(){
     (points.length ? '<h3 style="margin-top:1rem">Talking points</h3><ul style="margin:.3rem 0 0;padding-left:1.2rem;font-size:.88rem">' +
       points.map(p => '<li style="margin-bottom:.3rem">' + p + '</li>').join('') + '</ul>' : '') +
     '<div style="margin-top:1rem">' +
-      '<label for="supNotes">Supervision notes for ' + escapeHtml(a.name) + '</label>' +
+      '<label for="supNotes">Supervision notes for ' + escHtml(a.name) + '</label>' +
       '<textarea id="supNotes" style="min-height:90px" placeholder="Points discussed, actions agreed, targets set" oninput="onSupNotes(this.value)">' + escapeHtml(monthRec().supNotes || '') + '</textarea>' +
       '<div class="hint">Saved against ' + new Date(currentMonth + '-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'}) + '. Private to this view.</div>' +
     '</div>';
@@ -2155,6 +2227,8 @@ function render(){
   document.getElementById('mgrBtn').textContent = mgr ? 'Leave manager mode' : 'Manager mode';
   document.getElementById('supCard').style.display = mgr ? '' : 'none';
   document.getElementById('importBtn').style.display = mgr ? '' : 'none';
+  const hw = document.getElementById('hdrWordBtn'); if(hw) hw.style.display = mgr ? '' : 'none';
+  const hp = document.getElementById('hdrPdfBtn'); if(hp) hp.style.display = mgr ? '' : 'none';
   sel.disabled = !mgr;
   const settingsBtn = document.getElementById('settingsBtn');
   if(settingsBtn) settingsBtn.style.display = mgr ? '' : 'none';
