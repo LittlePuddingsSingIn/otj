@@ -160,6 +160,7 @@
     </div>
     <div class="grp" style="display:flex;gap:.5rem;flex-wrap:wrap">
       <button class="btn-ghost" id="cloudBtn" onclick="cloudSignIn()">Sign in to save</button>
+      <button class="btn-ghost" id="refreshBtn" onclick="refreshAll()" style="display:none">Refresh</button>
       <button class="btn-gold" onclick="exportWord()">Word</button>
       <button class="btn-gold" onclick="exportCollegePDF()">PDF</button>
       <button class="btn-ghost" onclick="window.print()">Print this screen</button>
@@ -512,18 +513,25 @@ const CLOUD = {
   clientId: '5a871fc6-d672-401e-a5a7-f9fb349ecc99',
   tenantId: 'a824d7c9-201d-4ae2-afea-e75389e576f0',
   managerUpn: 'susanne@groundedandcurious.co.uk',
-  filePath: '/Apps/Little Puddings OTJ/otj-data.json',   // in the signed-in user's own drive
-  scopes: ['User.Read', 'Files.ReadWrite']
+  folder: '- Little Puddings OTJ',              // parent folder in the manager's own OneDrive
+  scopes: ['User.Read', 'Files.ReadWrite', 'Files.ReadWrite.All']
 };
 let msalApp = null;
 let cloudAccount = null;
 let cloudToken = null;
-let cloudFileId = null;         // resolved driveItem id once known
 let syncTimer = null;
 let lastSyncedJSON = null;
 
 function cloudConfigured(){ return CLOUD.clientId.indexOf('PASTE') === -1; }
 function cloudLibReady(){ return typeof msal !== 'undefined'; }
+
+// a filesystem-safe key from an email, used as the per-apprentice filename
+function emailKey(email){ return (email || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+// Graph path helpers, all against the MANAGER's drive (needs Files.ReadWrite.All)
+function mgrDriveRoot(){ return 'https://graph.microsoft.com/v1.0/users/' + encodeURIComponent(CLOUD.managerUpn) + '/drive'; }
+function apprenticeFileUrl(key){ return mgrDriveRoot() + '/root:/' + encodeURI(CLOUD.folder + '/' + key + '.json') + ':'; }
+function folderChildrenUrl(){ return mgrDriveRoot() + '/root:/' + encodeURI(CLOUD.folder) + ':/children'; }
 
 function initMsal(){
   if(!cloudConfigured() || !cloudLibReady()) return;
@@ -550,7 +558,7 @@ async function cloudSignIn(){
   try {
     if(cloudAccount){                       // already signed in -> sign out
       await msalApp.logoutPopup({ account: cloudAccount });
-      cloudAccount = null; cloudToken = null; cloudFileId = null;
+      cloudAccount = null; cloudToken = null;
       session.role = 'apprentice'; session.appId = null;
       updateCloudButton(); showGate(); toast('Signed out');
       return;
@@ -578,36 +586,50 @@ async function getToken(){
   }
 }
 
-function graphUrlForFile(){
-  // colon-path addressing in the signed-in user's own drive
-  return 'https://graph.microsoft.com/v1.0/me/drive/root:' + encodeURI(CLOUD.filePath) + ':';
-}
+function graphHeaders(tok){ return { Authorization: 'Bearer ' + tok }; }
 
-async function cloudLoad(){
+// Load one apprentice's file from the manager's shared folder
+async function loadApprenticeFile(key){
   const tok = await getToken(); if(!tok) return null;
   try {
-    const r = await fetch(graphUrlForFile() + '/content', { headers: { Authorization: 'Bearer ' + tok } });
-    if(r.status === 404) return null;         // no file yet, first time
+    const r = await fetch(apprenticeFileUrl(key) + '/content', { headers: graphHeaders(tok) });
+    if(r.status === 404) return null;
     if(!r.ok) throw new Error('load ' + r.status);
     return await r.json();
   } catch(e){ return null; }
 }
 
-async function cloudSave(data){
+// Save one apprentice's file into the manager's shared folder
+async function saveApprenticeFile(key, record){
   const tok = await getToken(); if(!tok) return false;
-  const body = JSON.stringify(data);
-  if(body === lastSyncedJSON) return true;    // nothing changed
   try {
-    const r = await fetch(graphUrlForFile() + '/content', {
-      method: 'PUT',
-      headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
-      body
+    const r = await fetch(apprenticeFileUrl(key) + '/content', {
+      method: 'PUT', headers: Object.assign(graphHeaders(tok), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(record)
     });
     if(!r.ok) throw new Error('save ' + r.status);
-    lastSyncedJSON = body;
     setCloudStatus('Saved to OneDrive');
     return true;
   } catch(e){ setCloudStatus('Saved on this device (cloud retry pending)'); return false; }
+}
+
+// Manager: list every apprentice file in the shared folder and load them all
+async function loadAllApprentices(){
+  const tok = await getToken(); if(!tok) return [];
+  try {
+    const r = await fetch(folderChildrenUrl(), { headers: graphHeaders(tok) });
+    if(!r.ok) return [];
+    const data = await r.json();
+    const files = (data.value || []).filter(f => f.name && f.name.endsWith('.json') && f.file);
+    const records = [];
+    for(const f of files){
+      try {
+        const rr = await fetch(mgrDriveRoot() + '/items/' + f.id + '/content', { headers: graphHeaders(tok) });
+        if(rr.ok) records.push(await rr.json());
+      } catch(e){ /* skip a file that will not read */ }
+    }
+    return records;
+  } catch(e){ return []; }
 }
 
 function whoSignedIn(){ return cloudAccount ? (cloudAccount.username || '').toLowerCase() : null; }
@@ -615,34 +637,48 @@ function whoSignedIn(){ return cloudAccount ? (cloudAccount.username || '').toLo
 async function afterSignIn(silent){
   updateCloudButton();
   setCloudStatus('Connecting to OneDrive...');
-  // set the role from the signed-in identity
   const who = whoSignedIn();
-  if(who === CLOUD.managerUpn.toLowerCase()){
-    session.role = 'manager';
-  } else {
-    session.role = 'apprentice';
-  }
-  // load their cloud copy and merge with anything logged offline
-  const cloud = await cloudLoad();
-  if(cloud && cloud.apprentices){
-    // cloud is the source of truth for a returning user; keep any offline-only entries
-    mergeInto(cloud);
-    db = cloud;
-    lastSyncedJSON = JSON.stringify(db);
+  const isManager = (who === CLOUD.managerUpn.toLowerCase());
+  session.role = isManager ? 'manager' : 'apprentice';
+
+  if(isManager){
+    // Manager: load every apprentice file from the shared folder into one view
+    const records = await loadAllApprentices();
+    // rebuild db from all apprentice records
+    const merged = { pin: db.pin || '', apprentices: [], entries: [], months: {}, tasks: db.tasks || {} };
+    records.forEach(rec => {
+      (rec.apprentices || []).forEach(a => { if(!merged.apprentices.find(x => x.id === a.id)) merged.apprentices.push(a); });
+      (rec.entries || []).forEach(e => merged.entries.push(e));
+      Object.keys(rec.months || {}).forEach(k => { merged.months[k] = rec.months[k]; });
+      Object.keys(rec.tasks || {}).forEach(k => { merged.tasks[k] = rec.tasks[k]; });
+    });
+    // keep any manager-side apprentices set up locally but not yet synced (pre-created records)
+    (db.apprentices || []).forEach(a => { if(!merged.apprentices.find(x => x.id === a.id)) merged.apprentices.push(a); });
+    db = merged;
     store.write(db);
+    currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
+    setCloudStatus('Signed in as manager. Showing all apprentices.');
   } else {
-    // first time in the cloud: push what we have (usually empty for an apprentice)
-    await cloudSave(db);
+    // Apprentice: load their own file from the shared folder, seed if new
+    const key = emailKey(who);
+    session.cloudKey = key;
+    const cloud = await loadApprenticeFile(key);
+    if(cloud && cloud.apprentices){
+      mergeInto(cloud);
+      db = cloud;
+      store.write(db);
+    }
+    bindApprenticeIdentity();
+    // make sure the apprentice record carries its own email so the manager view names it
+    const me = db.apprentices.find(a => a.id === session.appId);
+    if(me && !me.email) me.email = who;
+    currentApp = session.appId;
+    await saveApprenticeFile(key, db);   // ensure their file exists in the shared folder
+    setCloudStatus('Signed in as ' + (cloudAccount.name || who));
   }
-  // an apprentice is bound to their own single record; ensure one exists
-  bindApprenticeIdentity();
-  currentApp = (session.role === 'manager')
-    ? (db.apprentices[0] ? db.apprentices[0].id : null)
-    : session.appId;
-  setCloudStatus('Signed in as ' + (cloudAccount.name || who));
   hideGate();
   render();
-  if(!silent) toast('Signed in, your record will save automatically');
+  if(!silent) toast(isManager ? 'Signed in. All apprentices are shown.' : 'Signed in, your record saves automatically');
 }
 
 /* keep any entries made offline that are not yet in the cloud copy */
@@ -727,6 +763,8 @@ function updateCloudButton(){
   // when signed in, the account sets the role, so hide the PIN-based manager toggle
   const mgrBtn = document.getElementById('mgrBtn');
   if(mgrBtn) mgrBtn.style.display = cloudAccount ? 'none' : '';
+  const refreshBtn = document.getElementById('refreshBtn');
+  if(refreshBtn) refreshBtn.style.display = (cloudAccount && session.role === 'manager') ? '' : 'none';
 }
 
 /* ---------- welcome gate ---------- */
@@ -769,10 +807,37 @@ function setCloudStatus(msg){
 }
 
 /* debounced cloud save, called from save() */
+async function refreshAll(){
+  if(session.role !== 'manager' || !cloudAccount) return;
+  setCloudStatus('Refreshing all apprentices...');
+  toast('Refreshing');
+  await afterSignIn(true);
+}
+
 function queueCloudSave(){
   if(!cloudAccount) return;
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => cloudSave(db), 900);
+  syncTimer = setTimeout(() => {
+    if(session.role === 'manager'){
+      // manager edits (e.g. setting hours, signing off) save back to that apprentice's file
+      const a = app();
+      if(a && a.email){ saveApprenticeFile(emailKey(a.email), oneApprenticeSlice(a.id)); }
+    } else if(session.cloudKey){
+      saveApprenticeFile(session.cloudKey, db);
+    }
+  }, 900);
+}
+
+// build a single-apprentice db slice, so a manager edit writes only that person's file
+function oneApprenticeSlice(appId){
+  const a = db.apprentices.find(x => x.id === appId);
+  return {
+    pin: '',
+    apprentices: a ? [a] : [],
+    entries: db.entries.filter(e => e.appId === appId),
+    months: Object.fromEntries(Object.entries(db.months).filter(([k]) => k.startsWith(appId + '|'))),
+    tasks: db.tasks || {}
+  };
 }
 
 
@@ -1492,6 +1557,7 @@ function escHtml(s){
 const session = {
   role: 'apprentice',      // 'manager' | 'apprentice'
   appId: null,             // which apprentice this session belongs to, when not manager
+  cloudKey: null,          // this apprentice's file key in the shared folder
   account: null            // populated by MSAL later
 };
 function isManager(){ return session.role === 'manager'; }
