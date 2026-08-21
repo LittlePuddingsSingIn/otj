@@ -553,13 +553,19 @@ async function initMsal(){
 
   if(handled && handled.account){
     // just came back from a fresh sign-in
+    if(!isWorkAccount(handled.account)){
+      toast('Please sign in with your Little Puddings email, not a personal account.');
+      try { await msalApp.logoutRedirect({ account: handled.account }); } catch(e){}
+      return;
+    }
     cloudAccount = handled.account;
     msalApp.setActiveAccount(cloudAccount);
     await afterSignIn(false);
   } else {
-    // returning visitor with a cached session
+    // returning visitor: choose the WORK account if one is cached, ignore personal ones
     var accts = msalApp.getAllAccounts();
-    if(accts.length){ cloudAccount = accts[0]; msalApp.setActiveAccount(cloudAccount); await afterSignIn(true); }
+    var work = accts.find(isWorkAccount);
+    if(work){ cloudAccount = work; msalApp.setActiveAccount(cloudAccount); await afterSignIn(true); }
   }
   updateCloudButton();
   updateGateState();
@@ -572,10 +578,13 @@ async function cloudSignIn(){
   }
   if(!cloudConfigured()){ toast('Cloud sign-in is not configured'); return; }
   try {
-    if(cloudAccount){                       // already signed in -> sign out
-      cloudToken = null; session.role = 'apprentice'; session.appId = null;
-      await msalApp.logoutRedirect({ account: cloudAccount });
-      return;   // page navigates away to sign out
+    if(cloudAccount){                       // already signed in -> sign out of the TOOL only
+      cloudToken = null; cloudAccount = null;
+      session.role = 'apprentice'; session.appId = null; session.cloudKey = null;
+      if(msalApp.setActiveAccount) msalApp.setActiveAccount(null);
+      updateCloudButton(); showGate();
+      toast('Signed out of the tool');
+      return;
     }
     // full-page redirect to Microsoft, avoids the popup-in-popup block entirely
     await msalApp.loginRedirect({ scopes: CLOUD.scopes, prompt: 'select_account' });
@@ -647,26 +656,18 @@ async function loadAllApprentices(){
 }
 
 function whoSignedIn(){ return cloudAccount ? (cloudAccount.username || '').toLowerCase().trim() : null; }
+function accountEmail(acct){
+  if(!acct) return '';
+  var claims = acct.idTokenClaims || {};
+  return (acct.username || claims.preferred_username || claims.email || claims.upn || '').toLowerCase().trim();
+}
+function isWorkAccount(acct){
+  // only accounts on the setting's own domain may be used at all
+  return accountEmail(acct).indexOf('@groundedandcurious.co.uk') > -1;
+}
 function isManagerAccount(){
-  if(!cloudAccount) return false;
-  var mgr = CLOUD.managerUpn.toLowerCase().trim();
-  var mgrLocal = mgr.split('@')[0];
-  // gather every scrap of identity MSAL might carry the address in
-  var fields = [
-    cloudAccount.username,
-    cloudAccount.name,
-    cloudAccount.homeAccountId,
-    (cloudAccount.idTokenClaims && (cloudAccount.idTokenClaims.preferred_username || cloudAccount.idTokenClaims.email || cloudAccount.idTokenClaims.upn))
-  ];
-  for(var i=0;i<fields.length;i++){
-    var f = (fields[i] || '').toString().toLowerCase();
-    if(!f) continue;
-    if(f === mgr) return true;                 // exact match anywhere
-    if(f.indexOf(mgr) > -1) return true;        // full address contained
-    if(f.indexOf('susanne') > -1 && f.indexOf('groundedandcurious') > -1) return true; // her name + domain
-    if(f.indexOf('susanne rice') > -1) return true;   // her display name, final safety net
-  }
-  return false;
+  // manager is ONLY the exact work email, never a personal account or a name match
+  return accountEmail(cloudAccount) === CLOUD.managerUpn.toLowerCase().trim();
 }
 
 async function afterSignIn(silent){
