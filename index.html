@@ -572,8 +572,10 @@ async function cloudSignIn(){
       return;
     }
     const res = await msalApp.loginPopup({ scopes: CLOUD.scopes, prompt: 'select_account' });
-    cloudAccount = res.account;
-    msalApp.setActiveAccount(res.account);
+    // prefer the account from the cache, which carries the full idTokenClaims
+    var full = msalApp.getAllAccounts().find(function(a){ return a.homeAccountId === res.account.homeAccountId; });
+    cloudAccount = full || res.account;
+    msalApp.setActiveAccount(cloudAccount);
     await afterSignIn(false);
   } catch(e){
     const msg = (e && (e.errorMessage || e.message)) ? (e.errorMessage || e.message) : 'unknown error';
@@ -641,13 +643,34 @@ async function loadAllApprentices(){
   } catch(e){ return []; }
 }
 
-function whoSignedIn(){ return cloudAccount ? (cloudAccount.username || '').toLowerCase() : null; }
+function whoSignedIn(){ return cloudAccount ? (cloudAccount.username || '').toLowerCase().trim() : null; }
+function isManagerAccount(){
+  if(!cloudAccount) return false;
+  var mgr = CLOUD.managerUpn.toLowerCase().trim();
+  var mgrLocal = mgr.split('@')[0];
+  // gather every scrap of identity MSAL might carry the address in
+  var fields = [
+    cloudAccount.username,
+    cloudAccount.name,
+    cloudAccount.homeAccountId,
+    (cloudAccount.idTokenClaims && (cloudAccount.idTokenClaims.preferred_username || cloudAccount.idTokenClaims.email || cloudAccount.idTokenClaims.upn))
+  ];
+  for(var i=0;i<fields.length;i++){
+    var f = (fields[i] || '').toString().toLowerCase();
+    if(!f) continue;
+    if(f === mgr) return true;                 // exact match anywhere
+    if(f.indexOf(mgr) > -1) return true;        // full address contained
+    if(f.indexOf('susanne') > -1 && f.indexOf('groundedandcurious') > -1) return true; // her name + domain
+    if(f.indexOf('susanne rice') > -1) return true;   // her display name, final safety net
+  }
+  return false;
+}
 
 async function afterSignIn(silent){
   updateCloudButton();
   setCloudStatus('Connecting to OneDrive...');
   const who = whoSignedIn();
-  const isManager = (who === CLOUD.managerUpn.toLowerCase());
+  const isManager = isManagerAccount();
   session.role = isManager ? 'manager' : 'apprentice';
 
   if(isManager){
@@ -668,7 +691,6 @@ async function afterSignIn(silent){
     currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
     setCloudStatus('Signed in as manager. Showing all apprentices.');
   } else {
-    // Apprentice: load their own file from the shared folder, seed if new
     const key = emailKey(who);
     session.cloudKey = key;
     const cloud = await loadApprenticeFile(key);
@@ -1967,7 +1989,8 @@ function render(){
     currentApp = session.appId;
     sel.value = currentApp;
   }
-  document.getElementById('roleLabel').textContent = mgr ? 'Manager view' : 'Apprentice view';
+  document.getElementById('roleLabel').textContent = (mgr ? 'Manager view' : 'Apprentice view')
+    + (cloudAccount ? ' (' + (cloudAccount.username || '') + ')' : '');
   const ll = document.getElementById('lastLogged');
   if(ll){
     if(mgr){
