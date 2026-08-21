@@ -710,19 +710,37 @@ async function afterSignIn(silent){
     // Manager: load every apprentice file from the shared folder into one view
     const records = await loadAllApprentices();
     const merged = { pin: db.pin || '', apprentices: [], entries: [], months: {}, tasks: db.tasks || {} };
-    const byEmail = {};   // email -> apprentice, so a synced record replaces an empty local one
+    const byEmail = {};   // email -> the merged apprentice record we keep for that person
     records.forEach(rec => {
-      (rec.apprentices || []).forEach(a => {
+      // within THIS file, find its (single) apprentice and the id its entries use
+      const fileApps = rec.apprentices || [];
+      fileApps.forEach(a => {
         const em = (a.email || '').toLowerCase();
+        let keep;
         if(em && byEmail[em]){
-          // already have this person from another file; keep the one with more entries
-          return;
+          keep = byEmail[em];                 // already have this person; entries will re-point to them
+        } else {
+          keep = a;
+          if(em) byEmail[em] = a;
+          merged.apprentices.push(a);
         }
-        if(em) byEmail[em] = a;
-        merged.apprentices.push(a);
+        // re-point every entry in this file that belonged to THIS file's apprentice id
+        (rec.entries || []).forEach(e => {
+          if(e.appId === a.id){
+            const copy = Object.assign({}, e, { appId: keep.id });
+            // avoid duplicates when merging two files for the same person
+            if(!merged.entries.find(x => x.appId === copy.appId && x.date === copy.date && x.detail === copy.detail && x.mins === copy.mins)){
+              merged.entries.push(copy);
+            }
+          }
+        });
+        // carry month records too, re-keyed to the kept id
+        Object.keys(rec.months || {}).forEach(k => {
+          if(k.startsWith(a.id + '|')){
+            merged.months[keep.id + '|' + k.split('|')[1]] = rec.months[k];
+          }
+        });
       });
-      (rec.entries || []).forEach(e => merged.entries.push(e));
-      Object.keys(rec.months || {}).forEach(k => { merged.months[k] = rec.months[k]; });
       Object.keys(rec.tasks || {}).forEach(k => { merged.tasks[k] = rec.tasks[k]; });
     });
     // add locally pre-created apprentices ONLY if no synced file already covers that email
@@ -734,6 +752,9 @@ async function afterSignIn(silent){
     });
     db = merged;
     store.write(db);
+    db.apprentices.forEach(a => {
+      console.log('OTJ: ' + a.name + ' has ' + db.entries.filter(e => e.appId === a.id).length + ' entries after merge');
+    });
     currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
     setCloudStatus('Signed in as manager. Showing all apprentices.');
   } else {
