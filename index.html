@@ -640,16 +640,32 @@ async function loadApprenticeFile(key){
 
 // Save one apprentice's file into the manager's shared folder
 async function saveApprenticeFile(key, record){
-  const tok = await getToken(); if(!tok) return false;
+  let tok = await getToken(false);
+  if(!tok){
+    console.log('OTJ: no silent token for save, trying interactive');
+    tok = await getToken(true);   // may redirect; if so the page reloads and we save after
+    if(!tok){ setCloudStatus('Could not save to OneDrive: not signed in. Try signing in again.'); return false; }
+  }
   try {
-    const r = await fetch(apprenticeFileUrl(key) + '/content', {
+    const url = apprenticeFileUrl(key) + '/content';
+    const r = await fetch(url, {
       method: 'PUT', headers: Object.assign(graphHeaders(tok), { 'Content-Type': 'application/json' }),
       body: JSON.stringify(record)
     });
-    if(!r.ok) throw new Error('save ' + r.status);
+    if(!r.ok){
+      const txt = await r.text().catch(() => '');
+      console.log('OTJ: SAVE FAILED', r.status, url, txt.slice(0,200));
+      setCloudStatus('Could not save to OneDrive (error ' + r.status + '). Your entry is on this device; tell Sussie.');
+      return false;
+    }
+    console.log('OTJ: saved ' + (record.entries ? record.entries.length : 0) + ' entries to ' + key + '.json');
     setCloudStatus('Saved to OneDrive');
     return true;
-  } catch(e){ setCloudStatus('Saved on this device (cloud retry pending)'); return false; }
+  } catch(e){
+    console.log('OTJ: save threw', e && e.message);
+    setCloudStatus('Could not reach OneDrive. Your entry is saved on this device.');
+    return false;
+  }
 }
 
 // Manager: list every apprentice file in the shared folder and load them all
