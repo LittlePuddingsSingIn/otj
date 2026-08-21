@@ -595,17 +595,18 @@ async function cloudSignIn(){
   }
 }
 
-async function getToken(){
+async function getToken(allowRedirect){
   if(!cloudAccount) return null;
   try {
     const res = await msalApp.acquireTokenSilent({ scopes: CLOUD.scopes, account: cloudAccount });
     cloudToken = res.accessToken; return cloudToken;
   } catch(e){
-    try {
-      // if silent fails, fall back to a full-page redirect rather than a popup
-      await msalApp.acquireTokenRedirect({ scopes: CLOUD.scopes, account: cloudAccount });
-      return null;   // page navigates away and comes back
-    } catch(e2){ return null; }
+    console.log('OTJ: silent token failed', (e && (e.errorCode || e.message)) || e);
+    if(allowRedirect){
+      try { await msalApp.acquireTokenRedirect({ scopes: CLOUD.scopes, account: cloudAccount }); }
+      catch(e2){ console.log('OTJ: token redirect failed', e2 && e2.message); }
+    }
+    return null;
   }
 }
 
@@ -638,21 +639,37 @@ async function saveApprenticeFile(key, record){
 
 // Manager: list every apprentice file in the shared folder and load them all
 async function loadAllApprentices(){
-  const tok = await getToken(); if(!tok) return [];
+  const tok = await getToken(); if(!tok){ console.log('OTJ: no token for manager read'); return []; }
   try {
-    const r = await fetch(folderChildrenUrl(), { headers: graphHeaders(tok) });
-    if(!r.ok) return [];
+    const listUrl = folderChildrenUrl();
+    const r = await fetch(listUrl, { headers: graphHeaders(tok) });
+    if(!r.ok){ console.log('OTJ: folder listing failed', r.status, listUrl); return []; }
     const data = await r.json();
-    const files = (data.value || []).filter(f => f.name && f.name.endsWith('.json') && f.file);
+    const files = (data.value || []).filter(f => f.name && f.name.toLowerCase().endsWith('.json') && f.file);
+    console.log('OTJ: found ' + files.length + ' apprentice file(s) in folder');
     const records = [];
     for(const f of files){
+      let rec = null;
+      // try by item id first
       try {
         const rr = await fetch(mgrDriveRoot() + '/items/' + f.id + '/content', { headers: graphHeaders(tok) });
-        if(rr.ok) records.push(await rr.json());
-      } catch(e){ /* skip a file that will not read */ }
+        if(rr.ok) rec = await rr.json();
+        else console.log('OTJ: read by id failed for ' + f.name, rr.status);
+      } catch(e){ console.log('OTJ: read by id threw for ' + f.name); }
+      // fall back to reading by path
+      if(!rec){
+        try {
+          const byPath = mgrDriveRoot() + '/root:/' + encodeURI(CLOUD.folder + '/' + f.name) + ':/content';
+          const rr2 = await fetch(byPath, { headers: graphHeaders(tok) });
+          if(rr2.ok) rec = await rr2.json();
+          else console.log('OTJ: read by path failed for ' + f.name, rr2.status);
+        } catch(e){ console.log('OTJ: read by path threw for ' + f.name); }
+      }
+      if(rec) records.push(rec);
     }
+    console.log('OTJ: loaded ' + records.length + ' record(s)');
     return records;
-  } catch(e){ return []; }
+  } catch(e){ console.log('OTJ: loadAllApprentices error', e && e.message); return []; }
 }
 
 function whoSignedIn(){ return cloudAccount ? (cloudAccount.username || '').toLowerCase().trim() : null; }
