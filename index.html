@@ -274,6 +274,18 @@
           <div class="hint">Used to work out how many weeks of learning have elapsed, and therefore how many hours should have been logged by now.</div>
         </div>
       </div>
+      <div class="row" style="margin-top:1rem;border-top:1px solid var(--light);padding-top:.9rem">
+        <div class="wide">
+          <label>Annual leave for <span id="editLeaveName"></span></label>
+          <div class="hint">Add holiday periods so those weeks do not count towards the six-hours-a-week target. A week that is mostly leave is skipped. Odd days are fine; a single day will not remove a week unless most of that week is leave.</div>
+          <div id="leaveList" style="margin:.5rem 0"></div>
+          <div style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+            <div><label for="leaveFrom" style="font-size:.65rem">From</label><input type="date" id="leaveFrom"></div>
+            <div><label for="leaveTo" style="font-size:.65rem">To</label><input type="date" id="leaveTo"></div>
+            <button class="btn-gold" onclick="addLeave()">Add leave</button>
+          </div>
+        </div>
+      </div>
       <div class="row" style="margin-top:.7rem">
         <div class="wide">
           <label for="setPin">Manager PIN for the supervision view</label>
@@ -645,7 +657,7 @@ async function loadAllApprentices(){
     const r = await fetch(listUrl, { headers: graphHeaders(tok) });
     if(!r.ok){ console.log('OTJ: folder listing failed', r.status, listUrl); return []; }
     const data = await r.json();
-    const files = (data.value || []).filter(f => f.name && f.name.toLowerCase().endsWith('.json') && f.file);
+    const files = (data.value || []).filter(f => f.name && f.name.toLowerCase().endsWith('.json') && !f.folder);
     console.log('OTJ: found ' + files.length + ' apprentice file(s) in folder');
     const records = [];
     for(const f of files){
@@ -697,16 +709,29 @@ async function afterSignIn(silent){
   if(isManager){
     // Manager: load every apprentice file from the shared folder into one view
     const records = await loadAllApprentices();
-    // rebuild db from all apprentice records
     const merged = { pin: db.pin || '', apprentices: [], entries: [], months: {}, tasks: db.tasks || {} };
+    const byEmail = {};   // email -> apprentice, so a synced record replaces an empty local one
     records.forEach(rec => {
-      (rec.apprentices || []).forEach(a => { if(!merged.apprentices.find(x => x.id === a.id)) merged.apprentices.push(a); });
+      (rec.apprentices || []).forEach(a => {
+        const em = (a.email || '').toLowerCase();
+        if(em && byEmail[em]){
+          // already have this person from another file; keep the one with more entries
+          return;
+        }
+        if(em) byEmail[em] = a;
+        merged.apprentices.push(a);
+      });
       (rec.entries || []).forEach(e => merged.entries.push(e));
       Object.keys(rec.months || {}).forEach(k => { merged.months[k] = rec.months[k]; });
       Object.keys(rec.tasks || {}).forEach(k => { merged.tasks[k] = rec.tasks[k]; });
     });
-    // keep any manager-side apprentices set up locally but not yet synced (pre-created records)
-    (db.apprentices || []).forEach(a => { if(!merged.apprentices.find(x => x.id === a.id)) merged.apprentices.push(a); });
+    // add locally pre-created apprentices ONLY if no synced file already covers that email
+    (db.apprentices || []).forEach(a => {
+      const em = (a.email || '').toLowerCase();
+      if(em && byEmail[em]) return;                 // synced record wins over empty local one
+      if(!em && merged.apprentices.find(x => x.id === a.id)) return;
+      merged.apprentices.push(a);
+    });
     db = merged;
     store.write(db);
     currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
@@ -1009,6 +1034,42 @@ function updateStart(v){
   a.start = v;
   save(); render();
 }
+function addLeave(){
+  const a = app(); if(!a) return;
+  const from = document.getElementById('leaveFrom').value;
+  const to = document.getElementById('leaveTo').value;
+  if(!from || !to){ toast('Pick both a from and a to date'); return; }
+  if(to < from){ toast('The "to" date is before the "from" date'); return; }
+  if(!a.leave) a.leave = [];
+  a.leave.push({ from, to });
+  a.leave.sort((x,y) => x.from.localeCompare(y.from));
+  document.getElementById('leaveFrom').value = '';
+  document.getElementById('leaveTo').value = '';
+  save(); render();
+  toast('Leave added for ' + a.name);
+}
+function removeLeave(i){
+  const a = app(); if(!a || !a.leave) return;
+  a.leave.splice(i, 1);
+  save(); render();
+}
+function renderLeaveList(){
+  const box = document.getElementById('leaveList');
+  if(!box) return;
+  const a = app();
+  if(!a || !a.leave || !a.leave.length){ box.innerHTML = '<div class="hint">No leave recorded.</div>'; return; }
+  box.innerHTML = a.leave.map((p, i) =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--pale);border-radius:6px;padding:.35rem .6rem;margin-bottom:.3rem">' +
+      '<span style="font-size:.8rem">' + fmtDate(p.from) + ' to ' + fmtDate(p.to) + '</span>' +
+      '<button class="btn-quiet" style="padding:.15rem .5rem;font-size:.72rem" onclick="removeLeave(' + i + ')">Remove</button>' +
+    '</div>'
+  ).join('');
+}
+function fmtDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 function updateLegal(v){
   const a = app(); if(!a) return;
   a.legalName = (v || '').trim();
@@ -1094,6 +1155,11 @@ function addEntry(){
     err.innerHTML = '<div class="flag">Add a note on what you learnt before saving. Writing it now, while it is fresh, is much easier than trying to remember at the end of the month.</div>';
     document.getElementById('eComment').focus();
     return;
+  }
+  // gentle warning if this date is marked as annual leave
+  const meApp = db.apprentices.find(x => x.id === currentApp);
+  if(meApp && isOnLeave(meApp, new Date(date + 'T00:00:00'))){
+    if(!confirm(ukDate(date) + ' is marked as annual leave.\n\nYou do not need to log hours while you are off. Only add this if you genuinely chose to do some learning that day.\n\nAdd it anyway?')) return;
   }
   const entry = { id:uid(), appId:currentApp, date, detail, type, mins, comment, logged: new Date().toISOString() };
   if(!manualMode){ entry.start = document.getElementById('eStart').value; entry.end = document.getElementById('eEnd').value; }
@@ -1653,13 +1719,45 @@ function weeksInMonth(ym){
   }
   return n;
 }
+// how many of a month's weeks are mostly annual leave for this apprentice
+function leaveWeeksInMonth(appId, ym){
+  const a = db.apprentices.find(x => x.id === appId);
+  if(!a || !a.leave || !a.leave.length) return 0;
+  const [y,m] = ym.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  // find each Monday in the month, treat its Mon-Fri as the working week
+  let leaveWeeks = 0;
+  for(let d = 1; d <= last; d++){
+    const dt = new Date(y, m-1, d);
+    if(dt.getDay() !== 1) continue;            // only start on Mondays
+    let leaveDays = 0;
+    for(let k = 0; k < 5; k++){                // Mon..Fri
+      const day = new Date(y, m-1, d+k);
+      if(isOnLeave(a, day)) leaveDays++;
+    }
+    if(leaveDays >= 3) leaveWeeks++;           // a week that's mostly leave drops out
+  }
+  return leaveWeeks;
+}
+function isOnLeave(a, dateObj){
+  if(!a.leave) return false;
+  const iso = dateObj.toISOString().slice(0,10);
+  return a.leave.some(p => iso >= p.from && iso <= p.to);
+}
+// the month's target in minutes, after removing mostly-leave weeks
+function monthTargetMins(appId, ym){
+  const wks = weeksInMonth(ym) - leaveWeeksInMonth(appId, ym);
+  return Math.max(0, wks) * 360;
+}
 function renderMonthTarget(monthMins, label){
   const el = document.getElementById('monthTarget');
-  const wks = weeksInMonth(currentMonth);
+  const fullWks = weeksInMonth(currentMonth);
+  const leaveWks = leaveWeeksInMonth(currentApp, currentMonth);
+  const wks = Math.max(0, fullWks - leaveWks);
   const need = wks * 360;
-  const done = monthMins >= need;
+  const done = need === 0 ? true : monthMins >= need;
   const left = Math.max(0, need - monthMins);
-  const pct = Math.min(100, Math.round(monthMins / need * 100));
+  const pct = need === 0 ? 100 : Math.min(100, Math.round(monthMins / need * 100));
 
   // days remaining in this month, if it is the current one
   const today = new Date();
@@ -1668,16 +1766,21 @@ function renderMonthTarget(monthMins, label){
   const daysLeft = thisMonth ? (new Date(y, m, 0).getDate() - today.getDate()) : 0;
 
   let note;
-  if(done) note = 'Target met for ' + label + '. Anything further is a bonus.';
+  if(need === 0) note = 'All weeks this month are annual leave, so no hours are expected.';
+  else if(done) note = 'Target met for ' + label + '. Anything further is a bonus.';
   else if(thisMonth && daysLeft > 0) note = fmt(left) + ' still to log, with ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' left in the month.';
   else if(thisMonth) note = fmt(left) + ' still to log, and the month ends today.';
   else note = fmt(left) + ' short for ' + label + '.';
+
+  const wksLabel = leaveWks > 0
+    ? (wks + ' week' + (wks === 1 ? '' : 's') + ' &times; 6 hours (' + leaveWks + ' on leave)')
+    : (wks + ' weeks &times; 6 hours');
 
   el.innerHTML =
     '<div class="mt' + (done ? ' done' : '') + '">' +
       '<div class="mt-top">' +
         '<div><span class="mt-big">' + fmt(monthMins) + '</span> <span class="mt-lab">logged of ' + (need/60) + ' hours</span></div>' +
-        '<div class="mt-lab">' + label + ' &middot; ' + wks + ' weeks &times; 6 hours</div>' +
+        '<div class="mt-lab">' + label + ' &middot; ' + wksLabel + '</div>' +
       '</div>' +
       '<div class="mt-track"><span style="width:' + pct + '%"></span></div>' +
       '<div class="mt-note">' + (done ? '\u2713 ' : '') + note + '</div>' +
@@ -2050,6 +2153,8 @@ function render(){
   document.getElementById('setupLinkHint').textContent = a.email ? '' : 'Add their sign-in email above to generate the link.';
   document.getElementById('editStart').value = a.start || '';
   document.getElementById('editStartName').textContent = a.name;
+  document.getElementById('editLeaveName').textContent = a.name;
+  renderLeaveList();
   document.getElementById('setPin').value = db.pin || '';
 
   const rec = monthRec();
