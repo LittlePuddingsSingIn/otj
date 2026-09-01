@@ -318,11 +318,12 @@
       <button class="btn-quiet btn-sm no-print" id="taskEditBtn" onclick="openTaskEditor()" style="display:none">Set a task</button>
     </div>
     <div id="taskBody"></div>
+    <div id="taskHistory" style="margin-top:.8rem"></div>
     <div id="taskEditor" style="display:none;margin-top:.8rem">
       <div class="row">
         <div class="wide">
           <label for="taskText">Task for the week beginning <span id="taskWeekLabel"></span></label>
-          <input id="taskText" placeholder="e.g. Complete the annual safeguarding refresher module">
+          <textarea id="taskText" rows="4" style="width:100%;resize:vertical;font-family:inherit;font-size:.95rem;padding:.6rem;border:1px solid #ccc;border-radius:7px" placeholder="e.g. Complete the annual safeguarding refresher module and note two things you will do differently"></textarea>
         </div>
       </div>
       <div class="row" style="margin-top:.5rem">
@@ -340,9 +341,8 @@
           <button class="btn-primary btn-sm" onclick="saveTask()">Save task</button>
           <button class="btn-ghost btn-sm" onclick="closeTaskEditor()">Cancel</button>
         </div>
-        <button class="btn-danger btn-sm" onclick="clearTask()">Remove this week's task</button>
       </div>
-      <div class="hint">Set it for everyone, or just one apprentice. It shows to them for the whole week.</div>
+      <div class="hint">Set it for everyone, or just one apprentice. It shows to them for the whole week. You can edit or remove it afterwards from the task itself.</div>
     </div>
   </div>
 
@@ -1865,10 +1865,60 @@ function thisMonday(){ return mondayOf(new Date().toISOString().slice(0,10)); }
 function tasksForWeek(wk, appId){
   return (ensureTasks()[wk] || []).filter(t => t.for === 'all' || t.for === appId);
 }
+function taskStatusLine(t, mgr){
+  // a small status line: done by apprentice, checked by manager
+  let bits = [];
+  if(t.done) bits.push('<span class="tag" style="background:var(--pale);color:var(--green)">Marked done</span>');
+  if(t.mgrChecked) bits.push('<span class="tag" style="background:var(--green);color:#fff">Signed off</span>');
+  if(!t.done && !t.mgrChecked) bits.push('<span class="tag" style="background:var(--cream);color:#8a6a00">Not yet done</span>');
+  return bits.join(' ');
+}
+function taskBlockHtml(t, wk, mgr, editable){
+  const audience = (mgr && t.for === 'all') ? '<span class="tag" style="margin-left:.4rem">everyone</span>'
+    : (mgr && t.for !== 'all') ? '<span class="tag" style="margin-left:.4rem">this apprentice</span>' : '';
+  let html = '<div class="note" style="margin-top:.4rem">';
+  html += '<div style="white-space:pre-wrap"><b>' + escHtml(t.text) + '</b>' + audience + '</div>';
+  if(t.link) html += '<div style="margin-top:.3rem"><a href="' + encodeURI(t.link) + '" target="_blank" rel="noopener" style="color:var(--green);font-weight:bold">Open the resource</a></div>';
+  html += '<div style="margin-top:.4rem">' + taskStatusLine(t, mgr) + '</div>';
+
+  // apprentice: a done/not-done toggle
+  if(!mgr){
+    html += '<button class="btn-quiet btn-sm no-print" style="margin-top:.4rem" onclick="markTaskDone(\'' + t.id + '\')">' +
+      (t.done ? 'Mark as not done' : 'Mark as done') + '</button>';
+  }
+  // manager: edit, remove, sign-off tick, feedback
+  if(mgr){
+    if(editable){
+      html += '<div class="grp no-print" style="margin-top:.4rem">' +
+        '<button class="btn-quiet btn-sm" onclick="openTaskEditor(\'' + t.id + '\')">Edit</button>' +
+        '<button class="btn-danger btn-sm" onclick="removeTask(\'' + t.id + '\')">Remove</button>' +
+        '<button class="btn-primary btn-sm" onclick="toggleTaskChecked(\'' + t.id + '\',\'' + wk + '\')">' +
+          (t.mgrChecked ? 'Unsign' : 'Sign off') + '</button>' +
+      '</div>';
+    } else {
+      html += '<div class="grp no-print" style="margin-top:.4rem">' +
+        '<button class="btn-primary btn-sm" onclick="toggleTaskChecked(\'' + t.id + '\',\'' + wk + '\')">' +
+          (t.mgrChecked ? 'Unsign' : 'Sign off') + '</button>' +
+        '<button class="btn-danger btn-sm" onclick="removeTask(\'' + t.id + '\')">Remove</button>' +
+      '</div>';
+    }
+    html += '<div style="margin-top:.4rem">' +
+      '<label style="font-size:.7rem;color:var(--grey);font-weight:bold">Feedback for the apprentice</label>' +
+      '<textarea id="fb-' + t.id + '" rows="2" style="width:100%;resize:vertical;font-family:inherit;font-size:.9rem;padding:.4rem;border:1px solid #ccc;border-radius:6px">' + escHtml(t.feedback || '') + '</textarea>' +
+      '<button class="btn-quiet btn-sm no-print" style="margin-top:.3rem" onclick="saveTaskFeedback(\'' + t.id + '\',\'' + wk + '\')">Save feedback</button>' +
+    '</div>';
+  } else if(t.feedback){
+    // apprentice sees feedback if the manager left any
+    html += '<div class="goldnote" style="margin-top:.4rem"><b>Feedback from Sussie:</b><br>' + escHtml(t.feedback) + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
 function renderTaskCard(){
   const card = document.getElementById('taskCard');
   if(!card) return;
   const body = document.getElementById('taskBody');
+  const hist = document.getElementById('taskHistory');
   const editBtn = document.getElementById('taskEditBtn');
   const mgr = isManager();
   const wk = thisMonday();
@@ -1876,7 +1926,6 @@ function renderTaskCard(){
   const who = mgr ? currentApp : session.appId;
   const mine = tasksForWeek(wk, who);
 
-  // has this person logged anything this week?
   const loggedThisWeek = myEntries().some(e => mondayOf(e.date) === wk);
   const nudge = (!mgr && !loggedThisWeek)
     ? '<div class="flag" style="margin-top:.4rem"><b>Nothing logged this week yet.</b> Add your off-the-job activities while they are fresh.</div>'
@@ -1884,35 +1933,53 @@ function renderTaskCard(){
 
   let inner = nudge;
   if(mine.length){
-    inner += mine.map(t =>
-      '<div class="note" style="margin-top:.4rem">' +
-        '<b>' + escapeHtml(t.text) + '</b>' +
-        (t.link ? '<br><a href="' + encodeURI(t.link) + '" target="_blank" rel="noopener" style="color:var(--green);font-weight:bold">Open the resource</a>' : '') +
-        (mgr && t.for !== 'all' ? '<span class="tag" style="margin-left:.4rem">this apprentice</span>' : '') +
-        (mgr && t.for === 'all' ? '<span class="tag" style="margin-left:.4rem">everyone</span>' : '') +
-      '</div>').join('');
+    inner += mine.map(t => taskBlockHtml(t, wk, mgr, true)).join('');
   } else {
     inner += mgr
       ? '<div class="hint">No task set for this week yet. Use "Set a task" to add one.</div>'
       : (nudge ? '' : '<div class="hint">No task set for this week.</div>');
   }
   body.innerHTML = inner;
-  // show the card if the manager, or if there is a task or a nudge for the apprentice
-  card.style.display = (!mgr && !mine.length && !nudge) ? 'none' : '';
+
+  // history: previous weeks' tasks for this person
+  const allWeeks = Object.keys(ensureTasks()).filter(w => w < wk).sort().reverse();
+  let histHtml = '';
+  allWeeks.forEach(w => {
+    const past = (ensureTasks()[w] || []).filter(t => t.for === 'all' || t.for === who);
+    if(!past.length) return;
+    histHtml += '<div style="margin-top:.5rem"><div class="hint" style="font-weight:bold;color:var(--green)">Week beginning ' + shortDate(w) + '</div>' +
+      past.map(t => taskBlockHtml(t, w, mgr, false)).join('') + '</div>';
+  });
+  if(histHtml){
+    hist.innerHTML = '<details style="margin-top:.6rem"><summary style="cursor:pointer;font-weight:bold;color:var(--green)">Previous tasks</summary>' + histHtml + '</details>';
+  } else {
+    hist.innerHTML = '';
+  }
+
+  card.style.display = (!mgr && !mine.length && !nudge && !histHtml) ? 'none' : '';
 }
-function openTaskEditor(){
+function openTaskEditor(editId){
   if(!isManager()) return;
   const wk = thisMonday();
   document.getElementById('taskWeekLabel').textContent = shortDate(wk);
   const sel = document.getElementById('taskFor');
   sel.innerHTML = '<option value="all">Everyone</option>' +
     db.apprentices.map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
-  const existing = tasksForWeek(wk, currentApp)[0];
+  // if editing a specific task, load it; else prefill from any task for the current apprentice
+  let existing = null;
+  if(editId){ existing = (ensureTasks()[wk] || []).find(t => t.id === editId); }
+  if(!existing){ existing = tasksForWeek(wk, currentApp)[0]; }
   document.getElementById('taskText').value = existing ? existing.text : '';
   document.getElementById('taskLink').value = existing ? (existing.link || '') : '';
+  if(existing && existing.for) sel.value = existing.for;
+  document.getElementById('taskEditor').dataset.editId = existing ? existing.id : '';
   document.getElementById('taskEditor').style.display = 'block';
 }
-function closeTaskEditor(){ document.getElementById('taskEditor').style.display = 'none'; }
+function closeTaskEditor(){
+  const ed = document.getElementById('taskEditor');
+  ed.style.display = 'none';
+  ed.dataset.editId = '';
+}
 function saveTask(){
   if(!isManager()) return;
   const text = document.getElementById('taskText').value.trim();
@@ -1922,17 +1989,49 @@ function saveTask(){
   const wk = thisMonday();
   const tasks = ensureTasks();
   if(!tasks[wk]) tasks[wk] = [];
-  tasks[wk] = tasks[wk].filter(t => t.for !== forWhom);
-  tasks[wk].push({ for: forWhom, text, link });
-  closeTaskEditor(); save(); render(); toast('Task set for the week');
+  const editId = document.getElementById('taskEditor').dataset.editId;
+  if(editId){
+    // amend the existing task, keeping its status and feedback
+    const t = tasks[wk].find(x => x.id === editId);
+    if(t){ t.text = text; t.link = link; t.for = forWhom; }
+  } else {
+    // one task per audience per week: replace any existing for that audience
+    tasks[wk] = tasks[wk].filter(t => t.for !== forWhom);
+    tasks[wk].push({ id: uid(), for: forWhom, text, link, done: false, mgrChecked: false, feedback: '' });
+  }
+  closeTaskEditor(); save(); render(); toast('Task saved');
 }
-function clearTask(){
+function removeTask(id){
   if(!isManager()) return;
+  if(!confirm('Remove this task?')) return;
   const wk = thisMonday();
   const tasks = ensureTasks();
-  const forWhom = document.getElementById('taskFor').value;
-  if(tasks[wk]) tasks[wk] = tasks[wk].filter(t => t.for !== forWhom);
-  closeTaskEditor(); save(); render(); toast('Task removed');
+  if(tasks[wk]) tasks[wk] = tasks[wk].filter(t => t.id !== id);
+  save(); render(); toast('Task removed');
+}
+function markTaskDone(id){
+  // apprentice marks their task as done/submitted
+  const wk = thisMonday();
+  const t = (ensureTasks()[wk] || []).find(x => x.id === id);
+  if(!t) return;
+  t.done = !t.done;
+  save(); render();
+  toast(t.done ? 'Marked as done' : 'Marked as not done');
+}
+function toggleTaskChecked(id, wk){
+  if(!isManager()) return;
+  const t = (ensureTasks()[wk] || []).find(x => x.id === id);
+  if(!t) return;
+  t.mgrChecked = !t.mgrChecked;
+  save(); render();
+}
+function saveTaskFeedback(id, wk){
+  if(!isManager()) return;
+  const t = (ensureTasks()[wk] || []).find(x => x.id === id);
+  if(!t) return;
+  const val = document.getElementById('fb-' + id).value.trim();
+  t.feedback = val;
+  save(); render(); toast('Feedback saved');
 }
 
 function mondayOf(d){
