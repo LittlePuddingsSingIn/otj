@@ -328,8 +328,8 @@
       </div>
       <div class="row" style="margin-top:.5rem">
         <div class="wide">
-          <label for="taskLink">Link (optional)</label>
-          <input id="taskLink" placeholder="Paste a link to the course, article or resource">
+          <label for="taskLink">Link to a task document or resource (optional)</label>
+          <input id="taskLink" placeholder="Paste a OneDrive share link to the task document, course or article">
         </div>
         <div class="narrow">
           <label for="taskFor">For</label>
@@ -1878,11 +1878,14 @@ function taskBlockHtml(t, wk, mgr, editable){
     : (mgr && t.for !== 'all') ? '<span class="tag" style="margin-left:.4rem">this apprentice</span>' : '';
   let html = '<div class="note" style="margin-top:.4rem">';
   html += '<div style="white-space:pre-wrap"><b>' + escHtml(t.text) + '</b>' + audience + '</div>';
-  if(t.link) html += '<div style="margin-top:.3rem"><a href="' + encodeURI(t.link) + '" target="_blank" rel="noopener" style="color:var(--green);font-weight:bold">Open the resource</a></div>';
+  if(t.link) html += '<div style="margin-top:.3rem"><a href="' + encodeURI(t.link) + '" target="_blank" rel="noopener" style="color:var(--green);font-weight:bold">Open the task document</a></div>';
   html += '<div style="margin-top:.4rem">' + taskStatusLine(t, mgr) + '</div>';
 
-  // apprentice: a done/not-done toggle
+  // apprentice: a standing reminder of how to submit, plus a done/not-done toggle
   if(!mgr){
+    html += '<div class="goldnote" style="margin-top:.4rem;font-size:.85rem">' +
+      'When you have finished, save your completed work in your off-the-job hours folder, then tap "Mark as done" below.' +
+      '</div>';
     html += '<button class="btn-quiet btn-sm no-print" style="margin-top:.4rem" onclick="markTaskDone(\'' + t.id + '\')">' +
       (t.done ? 'Mark as not done' : 'Mark as done') + '</button>';
   }
