@@ -510,7 +510,7 @@
 </div>
 
 <div class="no-print" style="text-align:center;color:var(--grey);font-size:.72rem;margin:1.4rem 0 2rem">
-  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026d
+  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026e
 </div>
 
 <div class="toast" id="toast"></div>
@@ -789,7 +789,7 @@ async function afterSignIn(silent){
       console.log('OTJ: ' + a.name + ' has ' + db.entries.filter(e => e.appId === a.id).length + ' entries after merge');
     });
     try { repairTaskWeeks(); } catch(e){}
-    currentApp = null;   // land on the task overview; manager picks an apprentice to open their record
+    currentApp = db.apprentices[0] ? db.apprentices[0].id : null;
     setCloudStatus('Signed in as manager. Showing all apprentices.');
   } else {
     const key = emailKey(who);
@@ -2379,13 +2379,9 @@ function countWords(){
   document.getElementById('wordCount').textContent = w + (w === 1 ? ' word' : ' words');
 }
 function render(){
-  resolveRole();
-  const mgrRole = isManager();
-  // apprentice select — managers get a "choose" placeholder so they can land on tasks first
+  // apprentice select
   const sel = document.getElementById('apprentice');
-  const placeholder = mgrRole ? '<option value="">Choose an apprentice to open their record...</option>' : '';
-  sel.innerHTML = placeholder + db.apprentices.map(a => '<option value="' + a.id + '"' + (a.id === currentApp ? ' selected' : '') + '>' + a.name + '</option>').join('');
-  sel.value = currentApp || '';
+  sel.innerHTML = db.apprentices.map(a => '<option value="' + a.id + '"' + (a.id === currentApp ? ' selected' : '') + '>' + a.name + '</option>').join('');
   document.getElementById('month').value = currentMonth;
 
   const empty = db.apprentices.length === 0;
@@ -2397,34 +2393,19 @@ function render(){
   if(empty) return;
 
   // ---- role: manager sees everything, apprentice sees only their own record ----
-  const mgr = mgrRole;
+  resolveRole();
+  const mgr = isManager();
   if(!mgr){
     // lock the session to one apprentice
     if(!session.appId || !db.apprentices.find(x => x.id === session.appId)){
       session.appId = db.apprentices[0].id;
     }
     currentApp = session.appId;
-    sel.value = currentApp;
   }
+  // manager: if nothing selected, default to the first apprentice so a record always shows
+  if(mgr && !currentApp){ currentApp = db.apprentices[0] ? db.apprentices[0].id : null; }
+  sel.value = currentApp || (db.apprentices[0] ? db.apprentices[0].id : '');
 
-  // manager landing view: no apprentice chosen yet -> show only tasks, hide the record cards
-  const noneSelected = mgr && !currentApp;
-  ['progressCard','addCard','entriesCard','supCard','reflectionCard','declarationCard'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el && noneSelected) el.style.display = 'none';
-  });
-  const hw0 = document.getElementById('hdrWordBtn'); if(hw0) hw0.style.display = (mgr && !noneSelected) ? '' : 'none';
-  const hp0 = document.getElementById('hdrPdfBtn'); if(hp0) hp0.style.display = (mgr && !noneSelected) ? '' : 'none';
-  const settingsB = document.getElementById('settingsBtn'); if(settingsB) settingsB.style.display = (mgr && !noneSelected) ? '' : 'none';
-  const llx = document.getElementById('lastLogged');
-  if(noneSelected){
-    if(llx) llx.innerHTML = '<div class="note">This week\'s tasks are shown below. Choose an apprentice above to open their hours record.</div>';
-    document.getElementById('roleLabel').textContent = 'Manager view' + (cloudAccount ? ' (' + (cloudAccount.username || '') + ')' : '');
-    document.getElementById('mgrBtn').textContent = 'Leave manager mode';
-    document.getElementById('importBtn').style.display = '';
-    renderTaskCard();
-    return;   // stop here: no per-apprentice record to draw
-  }
   document.getElementById('roleLabel').textContent = (mgr ? 'Manager view' : 'Apprentice view')
     + (cloudAccount ? ' (' + (cloudAccount.username || '') + ')' : '');
   const ll = document.getElementById('lastLogged');
