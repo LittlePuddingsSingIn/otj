@@ -510,7 +510,7 @@
 </div>
 
 <div class="no-print" style="text-align:center;color:var(--grey);font-size:.72rem;margin:1.4rem 0 2rem">
-  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026e
+  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026f
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1887,7 +1887,7 @@ function repairTaskWeeks(){
   });
   if(changed) store.write(db);
 }
-function thisMonday(){ return mondayOf(new Date().toISOString().slice(0,10)); }
+function thisMonday(){ return mondayOf(isoLocal(new Date())); }
 function tasksForWeek(wk, appId){
   // appId null with manager role = landing view: show every task that week
   if(appId === null && isManager()) return (ensureTasks()[wk] || []);
@@ -2116,16 +2116,23 @@ function saveTaskFeedback(id, wk){
   save(); render(); toast('Feedback saved');
 }
 
+// format a Date as YYYY-MM-DD using LOCAL components (avoids the UTC shift toISOString causes)
+function isoLocal(x){
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, '0');
+  const d = String(x.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + d;
+}
 function mondayOf(d){
   const x = new Date(d + 'T00:00:00');
   const day = (x.getDay() + 6) % 7;          // Monday = 0
   x.setDate(x.getDate() - day);
-  return x.toISOString().slice(0,10);
+  return isoLocal(x);
 }
 function addDays(iso, n){
   const x = new Date(iso + 'T00:00:00');
   x.setDate(x.getDate() + n);
-  return x.toISOString().slice(0,10);
+  return isoLocal(x);
 }
 function shortDate(iso){
   const [y,m,d] = iso.split('-');
