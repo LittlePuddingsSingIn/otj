@@ -510,7 +510,7 @@
 </div>
 
 <div class="no-print" style="text-align:center;color:var(--grey);font-size:.72rem;margin:1.4rem 0 2rem">
-  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026c
+  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026d
 </div>
 
 <div class="toast" id="toast"></div>
@@ -788,6 +788,7 @@ async function afterSignIn(silent){
     db.apprentices.forEach(a => {
       console.log('OTJ: ' + a.name + ' has ' + db.entries.filter(e => e.appId === a.id).length + ' entries after merge');
     });
+    try { repairTaskWeeks(); } catch(e){}
     currentApp = null;   // land on the task overview; manager picks an apprentice to open their record
     setCloudStatus('Signed in as manager. Showing all apprentices.');
   } else {
@@ -1871,20 +1872,20 @@ function renderMonthTarget(monthMins, label){
 }
 /* ---------- weekly task set by the manager ----------
    Stored as db.tasks[weekMondayISO] = [{ for:'all'|appId, text, link }] */
-function ensureTasks(){
-  if(!db.tasks) db.tasks = {};
-  // repair: make sure every task week key is a Monday (older tasks may sit on other days)
+function ensureTasks(){ if(!db.tasks) db.tasks = {}; return db.tasks; }
+// one-time repair, called only at startup: snap any task week key to its Monday
+function repairTaskWeeks(){
+  if(!db.tasks) return;
   let changed = false;
   Object.keys(db.tasks).forEach(k => {
     const mon = mondayOf(k);
     if(mon !== k){
-      db.tasks[mon] = (db.tasks[mon] || []).concat(db.tasks[k]);
+      db.tasks[mon] = (db.tasks[mon] || []).concat(db.tasks[k] || []);
       delete db.tasks[k];
       changed = true;
     }
   });
-  if(changed && typeof store !== 'undefined' && store.write) store.write(db);
-  return db.tasks;
+  if(changed) store.write(db);
 }
 function thisMonday(){ return mondayOf(new Date().toISOString().slice(0,10)); }
 function tasksForWeek(wk, appId){
@@ -2586,6 +2587,7 @@ function escapeHtml(s){
 /* ---------- init ---------- */
 document.getElementById('eType').innerHTML = TYPES.map(t => '<option>' + t + '</option>').join('');
 document.getElementById('eDate').value = new Date().toISOString().slice(0,10);
+try { repairTaskWeeks(); } catch(e){ console.log('OTJ: task repair skipped', e && e.message); }
 render();
 showGate();
 (function waitForMsal(tries){
