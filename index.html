@@ -322,6 +322,13 @@
     <div id="taskEditor" style="display:none;margin-top:.8rem">
       <div class="row">
         <div class="wide">
+          <label for="taskWeek">Which week is this task for?</label>
+          <select id="taskWeek" onchange="onTaskWeekChange()"></select>
+          <div class="hint">You can set a task for this week or any week ahead, so you can plan them in advance.</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:.5rem">
+        <div class="wide">
           <label for="taskText">Task for the week beginning <span id="taskWeekLabel"></span></label>
           <textarea id="taskText" rows="4" style="width:100%;resize:vertical;font-family:inherit;font-size:.95rem;padding:.6rem;border:1px solid #ccc;border-radius:7px" placeholder="e.g. Complete the annual safeguarding refresher module and note two things you will do differently"></textarea>
         </div>
@@ -1946,6 +1953,18 @@ function renderTaskCard(){
       ? '<div class="hint">No task set for this week yet. Use "Set a task" to add one.</div>'
       : (nudge ? '' : '<div class="hint">No task set for this week.</div>');
   }
+  // upcoming: future weeks' tasks for this person
+  const futureWeeks = Object.keys(ensureTasks()).filter(w => w > wk).sort();
+  let upHtml = '';
+  futureWeeks.forEach(w => {
+    const up = (ensureTasks()[w] || []).filter(t => t.for === 'all' || t.for === who);
+    if(!up.length) return;
+    upHtml += '<div style="margin-top:.5rem"><div class="hint" style="font-weight:bold;color:var(--green)">Week beginning ' + shortDate(w) + '</div>' +
+      up.map(t => taskBlockHtml(t, w, mgr, true)).join('') + '</div>';
+  });
+  if(upHtml){
+    inner += '<details style="margin-top:.6rem" open><summary style="cursor:pointer;font-weight:bold;color:var(--green)">Upcoming tasks</summary>' + upHtml + '</details>';
+  }
   body.innerHTML = inner;
 
   // history: previous weeks' tasks for this person
@@ -1963,24 +1982,52 @@ function renderTaskCard(){
     hist.innerHTML = '';
   }
 
-  card.style.display = (!mgr && !mine.length && !nudge && !histHtml) ? 'none' : '';
+  card.style.display = (!mgr && !mine.length && !nudge && !histHtml && !upHtml) ? 'none' : '';
 }
-function openTaskEditor(editId){
+function weekOptions(){
+  // this week plus the next 8 weeks
+  const opts = [];
+  let w = thisMonday();
+  for(let i = 0; i < 9; i++){
+    const label = (i === 0 ? 'This week' : (i === 1 ? 'Next week' : 'In ' + i + ' weeks')) + ' (w/c ' + shortDate(w) + ')';
+    opts.push({ value: w, label });
+    w = addDays(w, 7);
+  }
+  return opts;
+}
+function openTaskEditor(editId, forWeek){
   if(!isManager()) return;
-  const wk = thisMonday();
-  document.getElementById('taskWeekLabel').textContent = shortDate(wk);
+  // find the task being edited, so we can land on its week
+  let existing = null, existingWeek = null;
+  if(editId){
+    Object.keys(ensureTasks()).forEach(w => {
+      const found = (ensureTasks()[w] || []).find(t => t.id === editId);
+      if(found){ existing = found; existingWeek = w; }
+    });
+  }
+  const wkSel = document.getElementById('taskWeek');
+  let opts = weekOptions();
+  // if editing a task whose week is in the past or beyond the range, include its week too
+  if(existingWeek && !opts.find(o => o.value === existingWeek)){
+    opts.unshift({ value: existingWeek, label: 'Week of ' + shortDate(existingWeek) });
+  }
+  wkSel.innerHTML = opts.map(o => '<option value="' + o.value + '">' + o.label + '</option>').join('');
+  wkSel.value = existingWeek || (forWeek || thisMonday());
+
   const sel = document.getElementById('taskFor');
   sel.innerHTML = '<option value="all">Everyone</option>' +
     db.apprentices.map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
-  // if editing a specific task, load it; else prefill from any task for the current apprentice
-  let existing = null;
-  if(editId){ existing = (ensureTasks()[wk] || []).find(t => t.id === editId); }
-  if(!existing){ existing = tasksForWeek(wk, currentApp)[0]; }
+
   document.getElementById('taskText').value = existing ? existing.text : '';
   document.getElementById('taskLink').value = existing ? (existing.link || '') : '';
   if(existing && existing.for) sel.value = existing.for;
+  document.getElementById('taskWeekLabel').textContent = shortDate(wkSel.value);
   document.getElementById('taskEditor').dataset.editId = existing ? existing.id : '';
   document.getElementById('taskEditor').style.display = 'block';
+}
+function onTaskWeekChange(){
+  const wkSel = document.getElementById('taskWeek');
+  document.getElementById('taskWeekLabel').textContent = shortDate(wkSel.value);
 }
 function closeTaskEditor(){
   const ed = document.getElementById('taskEditor');
@@ -1993,33 +2040,44 @@ function saveTask(){
   if(!text) return toast('Enter the task first');
   const link = document.getElementById('taskLink').value.trim();
   const forWhom = document.getElementById('taskFor').value;
-  const wk = thisMonday();
+  const wk = document.getElementById('taskWeek').value;
   const tasks = ensureTasks();
-  if(!tasks[wk]) tasks[wk] = [];
   const editId = document.getElementById('taskEditor').dataset.editId;
   if(editId){
-    // amend the existing task, keeping its status and feedback
-    const t = tasks[wk].find(x => x.id === editId);
-    if(t){ t.text = text; t.link = link; t.for = forWhom; }
+    // remove the task from wherever it currently lives (its week may have changed)
+    let old = null;
+    Object.keys(tasks).forEach(w => {
+      const found = (tasks[w] || []).find(t => t.id === editId);
+      if(found){ old = found; tasks[w] = tasks[w].filter(t => t.id !== editId); }
+    });
+    if(!tasks[wk]) tasks[wk] = [];
+    tasks[wk].push(Object.assign(old || { id: editId, done:false, mgrChecked:false, feedback:'' }, { text, link, for: forWhom }));
   } else {
-    // one task per audience per week: replace any existing for that audience
-    tasks[wk] = tasks[wk].filter(t => t.for !== forWhom);
+    if(!tasks[wk]) tasks[wk] = [];
+    tasks[wk] = tasks[wk].filter(t => t.for !== forWhom);   // one per audience per week
     tasks[wk].push({ id: uid(), for: forWhom, text, link, done: false, mgrChecked: false, feedback: '' });
   }
-  closeTaskEditor(); save(); render(); toast('Task saved');
+  closeTaskEditor(); save(); render();
+  toast(wk === thisMonday() ? 'Task saved for this week' : 'Task saved for w/c ' + shortDate(wk));
 }
 function removeTask(id){
   if(!isManager()) return;
   if(!confirm('Remove this task?')) return;
-  const wk = thisMonday();
   const tasks = ensureTasks();
-  if(tasks[wk]) tasks[wk] = tasks[wk].filter(t => t.id !== id);
+  Object.keys(tasks).forEach(w => { tasks[w] = (tasks[w] || []).filter(t => t.id !== id); });
   save(); render(); toast('Task removed');
+}
+function findTask(id){
+  const tasks = ensureTasks();
+  for(const w of Object.keys(tasks)){
+    const t = (tasks[w] || []).find(x => x.id === id);
+    if(t) return t;
+  }
+  return null;
 }
 function markTaskDone(id){
   // apprentice marks their task as done/submitted
-  const wk = thisMonday();
-  const t = (ensureTasks()[wk] || []).find(x => x.id === id);
+  const t = findTask(id);
   if(!t) return;
   t.done = !t.done;
   save(); render();
@@ -2027,14 +2085,14 @@ function markTaskDone(id){
 }
 function toggleTaskChecked(id, wk){
   if(!isManager()) return;
-  const t = (ensureTasks()[wk] || []).find(x => x.id === id);
+  const t = findTask(id);
   if(!t) return;
   t.mgrChecked = !t.mgrChecked;
   save(); render();
 }
 function saveTaskFeedback(id, wk){
   if(!isManager()) return;
-  const t = (ensureTasks()[wk] || []).find(x => x.id === id);
+  const t = findTask(id);
   if(!t) return;
   const val = document.getElementById('fb-' + id).value.trim();
   t.feedback = val;
