@@ -510,7 +510,7 @@
 </div>
 
 <div class="no-print" style="text-align:center;color:var(--grey);font-size:.72rem;margin:1.4rem 0 2rem">
-  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026b
+  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026c
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1871,7 +1871,21 @@ function renderMonthTarget(monthMins, label){
 }
 /* ---------- weekly task set by the manager ----------
    Stored as db.tasks[weekMondayISO] = [{ for:'all'|appId, text, link }] */
-function ensureTasks(){ if(!db.tasks) db.tasks = {}; return db.tasks; }
+function ensureTasks(){
+  if(!db.tasks) db.tasks = {};
+  // repair: make sure every task week key is a Monday (older tasks may sit on other days)
+  let changed = false;
+  Object.keys(db.tasks).forEach(k => {
+    const mon = mondayOf(k);
+    if(mon !== k){
+      db.tasks[mon] = (db.tasks[mon] || []).concat(db.tasks[k]);
+      delete db.tasks[k];
+      changed = true;
+    }
+  });
+  if(changed && typeof store !== 'undefined' && store.write) store.write(db);
+  return db.tasks;
+}
 function thisMonday(){ return mondayOf(new Date().toISOString().slice(0,10)); }
 function tasksForWeek(wk, appId){
   // appId null with manager role = landing view: show every task that week
