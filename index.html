@@ -315,7 +315,10 @@
   <div class="card" id="taskCard">
     <div class="toolbar">
       <h2 style="margin:0">This week's focus</h2>
-      <button class="btn-quiet btn-sm no-print" id="taskEditBtn" onclick="openTaskEditor()" style="display:none">Set a task</button>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn-quiet btn-sm no-print" id="taskClearBtn" onclick="clearAllTasks()" style="display:none">Clear all tasks</button>
+        <button class="btn-quiet btn-sm no-print" id="taskEditBtn" onclick="openTaskEditor()" style="display:none">Set a task</button>
+      </div>
     </div>
     <div id="taskBody"></div>
     <div id="taskHistory" style="margin-top:.8rem"></div>
@@ -510,7 +513,7 @@
 </div>
 
 <div class="no-print" style="text-align:center;color:var(--grey);font-size:.72rem;margin:1.4rem 0 2rem">
-  Little Puddings Off-the-Job Learning Record &middot; version 25 September 2026a
+  Little Puddings Off-the-Job Learning Record &middot; version 25 September 2026c
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1877,6 +1880,7 @@ function ensureTasks(){ if(!db.tasks) db.tasks = {}; return db.tasks; }
 function repairTaskWeeks(){
   if(!db.tasks) return;
   let changed = false;
+  // 1. snap every week key to its Monday
   Object.keys(db.tasks).forEach(k => {
     const mon = mondayOf(k);
     if(mon !== k){
@@ -1885,7 +1889,25 @@ function repairTaskWeeks(){
       changed = true;
     }
   });
+  // 2. within each week, drop duplicate tasks (same text + audience)
+  Object.keys(db.tasks).forEach(k => {
+    const seen = {};
+    const cleaned = [];
+    (db.tasks[k] || []).forEach(t => {
+      const key = (t.for || '') + '|' + (t.text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if(seen[key]){ changed = true; return; }   // skip duplicate
+      seen[key] = true;
+      cleaned.push(t);
+    });
+    db.tasks[k] = cleaned;
+  });
   if(changed) store.write(db);
+}
+function clearAllTasks(){
+  if(!isManager()) return;
+  if(!confirm('Remove ALL weekly tasks and start fresh?\n\nThis clears every task, past and upcoming. It does NOT touch any apprentice hours or records. Use this to tidy up if tasks have become muddled.')) return;
+  db.tasks = {};
+  save(); render(); toast('All tasks cleared. You can set fresh ones now.');
 }
 function thisMonday(){ return mondayOf(isoLocal(new Date())); }
 function tasksForWeek(wk, appId){
@@ -1951,6 +1973,8 @@ function renderTaskCard(){
   const body = document.getElementById('taskBody');
   const hist = document.getElementById('taskHistory');
   const editBtn = document.getElementById('taskEditBtn');
+  const clearBtn = document.getElementById('taskClearBtn');
+  if(clearBtn) clearBtn.style.display = (isManager() && Object.keys(ensureTasks()).length) ? '' : 'none';
   const mgr = isManager();
   const wk = thisMonday();
   editBtn.style.display = mgr ? '' : 'none';
