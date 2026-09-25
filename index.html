@@ -510,7 +510,7 @@
 </div>
 
 <div class="no-print" style="text-align:center;color:var(--grey);font-size:.72rem;margin:1.4rem 0 2rem">
-  Little Puddings Off-the-Job Learning Record &middot; version 20 September 2026f
+  Little Puddings Off-the-Job Learning Record &middot; version 25 September 2026a
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1970,8 +1970,20 @@ function renderTaskCard(){
       ? '<div class="hint">No task set for this week yet. Use "Set a task" to add one.</div>'
       : (nudge ? '' : '<div class="hint">No task set for this week.</div>');
   }
-  // upcoming: future weeks' tasks for this person
-  const futureWeeks = Object.keys(ensureTasks()).filter(w => w > wk).sort();
+  // From Friday onwards, surface NEXT week's task at the top too, so the apprentice sees it in advance
+  const todayDow = new Date().getDay();          // 5=Fri, 6=Sat, 0=Sun
+  const showNextEarly = (todayDow === 5 || todayDow === 6 || todayDow === 0);
+  if(showNextEarly){
+    const nextWk = addDays(wk, 7);
+    const nextTasks = (who === null && mgr) ? (ensureTasks()[nextWk] || []) : (ensureTasks()[nextWk] || []).filter(t => t.for === 'all' || t.for === who);
+    if(nextTasks.length){
+      inner += '<div class="goldnote" style="margin-top:.6rem;font-weight:bold">Coming up, week beginning ' + shortDate(nextWk) + '</div>' +
+        nextTasks.map(t => taskBlockHtml(t, nextWk, mgr, true)).join('');
+    }
+  }
+  // upcoming: future weeks' tasks for this person (skip next week if already shown early above)
+  const shownEarlyWeek = showNextEarly ? addDays(wk, 7) : null;
+  const futureWeeks = Object.keys(ensureTasks()).filter(w => w > wk && w !== shownEarlyWeek).sort();
   let upHtml = '';
   futureWeeks.forEach(w => {
     const up = (who === null && mgr) ? (ensureTasks()[w] || []) : (ensureTasks()[w] || []).filter(t => t.for === 'all' || t.for === who);
