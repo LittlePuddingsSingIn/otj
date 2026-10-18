@@ -379,6 +379,7 @@
       <div class="narrow">
         <label for="eDate">Date</label>
         <input type="date" id="eDate">
+        <div class="hint" id="eDateHint" style="font-size:.7rem"></div>
       </div>
       <div class="wide">
         <label for="eDetail">Activity undertaken and skills gained</label>
@@ -387,6 +388,10 @@
       <div class="narrow">
         <label for="eType">Type</label>
         <select id="eType"></select>
+      </div>
+      <div class="narrow" style="display:flex;flex-direction:column;justify-content:flex-end">
+        <label>Live timer</label>
+        <button type="button" class="btn-primary" id="timerBtn" style="width:100%" onclick="toggleTimer()">Start timer</button>
       </div>
       <div class="narrow">
         <label for="eStart">Start time</label>
@@ -406,10 +411,10 @@
     </div>
     <div style="margin-top:.7rem">
       <label for="eComment">What I learnt from this <span style="color:var(--burgundy)">(required)</span></label>
-      <textarea id="eComment" style="min-height:64px" placeholder="What is new to you, or what can you now do that you could not do before?" oninput="commentCount()"></textarea>
-      <div class="hint" id="eCommentCount">Write this now while it is fresh. These build up into your monthly reflection.</div>
+      <textarea id="eComment" style="min-height:80px" placeholder="Reflect here: what did you notice, what is new to you, or what will you do differently? This is your own reminder, and it makes your monthly summary easy to write." oninput="commentCount()"></textarea>
+      <div class="hint" id="eCommentCount">A short reflection in your own words. It reminds you what you did and feeds straight into your monthly summary.</div>
     </div>
-    <div class="hint">Pick a start and end time and the length is worked out for you. If an activity crosses no clear clock times, for example an online module, use <button type="button" class="lnk" style="color:var(--burgundy);background:none;border:none;padding:0;font-weight:bold;cursor:pointer" onclick="toggleManual()">enter the length directly</button> instead. Each entry must be at least 30 minutes.</div>
+    <div class="hint">Best way: tap <b>Start timer</b> as you begin and <b>Stop timer</b> when you finish, and the real time is recorded for you. Or pick a start and end time yourself. If an activity has no clear clock times, for example an online module you did earlier, use <button type="button" class="lnk" style="color:var(--burgundy);background:none;border:none;padding:0;font-weight:bold;cursor:pointer" onclick="toggleManual()">enter the length directly</button> instead. Each entry must be at least 30 minutes.</div>
     <div id="manualRow" style="display:none;margin-top:.6rem">
       <div class="row">
         <div class="narrow">
@@ -513,7 +518,7 @@
 </div>
 
 <div class="no-print" style="text-align:center;color:var(--grey);font-size:.72rem;margin:1.4rem 0 2rem">
-  Little Puddings Off-the-Job Learning Record &middot; version 25 September 2026c
+  Little Puddings Off-the-Job Learning Record &middot; version 18 October 2026b
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1198,6 +1203,54 @@ function toggleManual(){
   document.getElementById('eEnd').disabled = manualMode;
   calcDuration();
 }
+
+// ---- live timer: records the real clock time, so no made-up timings ----
+let timerStart = null;       // Date when started
+let timerTick = null;        // interval for the running display
+let timerWasLive = false;    // true once a timer has been used for the pending entry
+function hhmm(d){ return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+function toggleTimer(){
+  const btn = document.getElementById('timerBtn');
+  if(!timerStart){
+    // start
+    if(manualMode) toggleManual();                 // timer uses the start/end fields, not manual
+    timerStart = new Date();
+    document.getElementById('eDate').value = isoLocal(timerStart);
+    document.getElementById('eStart').value = hhmm(timerStart);
+    document.getElementById('eEnd').value = '';
+    btn.textContent = 'Stop timer';
+    btn.style.background = 'var(--burgundy)';
+    document.getElementById('eStart').disabled = true;
+    document.getElementById('eEnd').disabled = true;
+    clearInterval(timerTick);
+    timerTick = setInterval(function(){
+      const mins = Math.round((Date.now() - timerStart.getTime())/60000);
+      const el = document.getElementById('eDuration');
+      el.textContent = 'running ' + fmt(mins || 0);
+      el.style.background = 'var(--cream)'; el.style.color = '#8a6a00';
+    }, 1000);
+    toast('Timer started. Tap "Stop timer" when you finish.');
+  } else {
+    // stop
+    const end = new Date();
+    document.getElementById('eEnd').value = hhmm(end);
+    clearInterval(timerTick); timerTick = null;
+    timerStart = null;
+    timerWasLive = true;
+    btn.textContent = 'Start timer';
+    btn.style.background = '';
+    document.getElementById('eStart').disabled = false;
+    document.getElementById('eEnd').disabled = false;
+    calcDuration();
+    toast('Timer stopped. Add your reflection, then tap Add.');
+  }
+}
+function resetTimerState(){
+  if(timerTick){ clearInterval(timerTick); timerTick = null; }
+  timerStart = null; timerWasLive = false;
+  const btn = document.getElementById('timerBtn');
+  if(btn){ btn.textContent = 'Start timer'; btn.style.background = ''; }
+}
 function currentMins(){
   if(manualMode){
     return (parseInt(document.getElementById('eHrs').value) || 0) * 60 + (parseInt(document.getElementById('eMins').value) || 0);
@@ -1218,13 +1271,20 @@ function calcDuration(){
   el.style.background = (m && m < 30) ? 'var(--rose)' : 'var(--pale)';
   el.style.color = (m && m < 30) ? 'var(--burgundy)' : 'var(--green)';
 }
-const MIN_COMMENT = 25;
+const LOG_WINDOW_DAYS = 1;   // apprentices may log today or yesterday (24hr grace for when their phone was not to hand), not a whole week later
+const MIN_COMMENT = 80;      // characters
+const MIN_WORDS = 15;        // words, so a short fragment will not pass
+function wordCount(s){ return (s.trim().match(/\S+/g) || []).length; }
 function commentCount(){
   const v = document.getElementById('eComment').value.trim();
   const el = document.getElementById('eCommentCount');
-  if(!v.length){ el.textContent = 'Write this now while it is fresh. These build up into your monthly reflection.'; el.style.color = 'var(--grey)'; return; }
-  if(v.length < MIN_COMMENT){ el.textContent = 'Keep going, add a little more detail (' + v.length + ' of ' + MIN_COMMENT + ' characters).'; el.style.color = 'var(--burgundy)'; return; }
-  el.textContent = 'Good, that will carry into your monthly reflection.'; el.style.color = 'var(--green)';
+  const words = wordCount(v);
+  if(!v.length){ el.textContent = 'Say what you actually learnt or can now do differently, not just what you did. This is what evidences your learning.'; el.style.color = 'var(--grey)'; return; }
+  if(v.length < MIN_COMMENT || words < MIN_WORDS){
+    el.textContent = 'Keep going, add more detail on what you learnt (' + words + ' of ' + MIN_WORDS + ' words).';
+    el.style.color = 'var(--burgundy)'; return;
+  }
+  el.textContent = 'Good, that shows your learning and will carry into your monthly reflection.'; el.style.color = 'var(--green)';
 }
 function addEntry(){
   const err = document.getElementById('addError');
@@ -1238,17 +1298,31 @@ function addEntry(){
   if(!date || !detail){ err.innerHTML = '<div class="flag">Add a date and a short description of the activity.</div>'; return; }
   if(!mins){ err.innerHTML = '<div class="flag">' + (manualMode ? 'Enter how long the activity lasted.' : 'Pick a start and end time.') + '</div>'; return; }
   if(mins < 30){ err.innerHTML = '<div class="flag">Each entry must be at least 30 minutes.</div>'; return; }
-  if(comment.length < MIN_COMMENT){
-    err.innerHTML = '<div class="flag">Add a note on what you learnt before saving. Writing it now, while it is fresh, is much easier than trying to remember at the end of the month.</div>';
+  if(comment.length < MIN_COMMENT || wordCount(comment) < MIN_WORDS){
+    err.innerHTML = '<div class="flag">Take a moment to reflect properly here. What did you notice, what is new to you, or what will you do differently in your practice? This is your own reminder of what you did, and it is what makes your monthly summary easy to write. A sentence or two is all it needs.</div>';
     document.getElementById('eComment').focus();
     return;
+  }
+  // log-as-you-go: apprentices may only enter today or the last few days, and never a future date.
+  // The manager can back-date freely (to correct records).
+  if(!isManager()){
+    const today = isoLocal(new Date());
+    if(date > today){
+      err.innerHTML = '<div class="flag">You cannot log a date in the future. Enter hours on the day you do the learning, or shortly after.</div>';
+      return;
+    }
+    const daysOld = Math.round((new Date(today + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
+    if(daysOld > LOG_WINDOW_DAYS){
+      err.innerHTML = '<div class="flag">This date is too far back. Off-the-job hours should be logged as you do them, not filled in later. Log your learning on the day, or the next day at the latest. The best way is to use the live timer as you go. If you have genuinely missed something and need it added, speak to Sussie.</div>';
+      return;
+    }
   }
   // gentle warning if this date is marked as annual leave
   const meApp = db.apprentices.find(x => x.id === currentApp);
   if(meApp && isOnLeave(meApp, new Date(date + 'T00:00:00'))){
     if(!confirm(ukDate(date) + ' is marked as annual leave.\n\nYou do not need to log hours while you are off. Only add this if you genuinely chose to do some learning that day.\n\nAdd it anyway?')) return;
   }
-  const entry = { id:uid(), appId:currentApp, date, detail, type, mins, comment, logged: new Date().toISOString() };
+  const entry = { id:uid(), appId:currentApp, date, detail, type, mins, comment, logged: new Date().toISOString(), timed: !!timerWasLive };
   if(!manualMode){ entry.start = document.getElementById('eStart').value; entry.end = document.getElementById('eEnd').value; }
   db.entries.push(entry);
   document.getElementById('eDetail').value = '';
@@ -1257,6 +1331,7 @@ function addEntry(){
   document.getElementById('eEnd').value = '';
   document.getElementById('eHrs').value = 0;
   document.getElementById('eMins').value = 0;
+  resetTimerState();
   calcDuration(); commentCount();
   save(); render(); toast('Activity logged');
   document.getElementById('eDetail').focus();
@@ -2451,6 +2526,15 @@ function render(){
 
   document.getElementById('roleLabel').textContent = (mgr ? 'Manager view' : 'Apprentice view')
     + (cloudAccount ? ' (' + (cloudAccount.username || '') + ')' : '');
+  // constrain the date field for apprentices so they log as they go; manager can back-date
+  const eDate = document.getElementById('eDate');
+  if(eDate){
+    const today = isoLocal(new Date());
+    if(mgr){ eDate.removeAttribute('max'); eDate.removeAttribute('min'); }
+    else { eDate.setAttribute('max', today); eDate.setAttribute('min', addDays(today, -LOG_WINDOW_DAYS)); }
+  }
+  const dateHint = document.getElementById('eDateHint');
+  if(dateHint) dateHint.textContent = mgr ? '' : 'Log on the day you do it. You can go back one day at most, not a whole week later.';
   const ll = document.getElementById('lastLogged');
   if(ll){
     if(mgr){
@@ -2537,7 +2621,8 @@ function render(){
         (e.edited ? '<span class="tag" style="background:#EFEFEF;color:var(--grey)">Edited ' + ukDate(e.edited.slice(0,10)) + '</span>' : '') +
         (e.comment ? '<div style="margin-top:.35rem;padding-left:.5rem;border-left:2px solid var(--gold);font-size:.85rem;color:#4a4a4a"><b style="color:var(--grey);font-size:.72rem;text-transform:uppercase">What I learnt</b><br>' + escapeHtml(e.comment) + '</div>' : '<div class="flag" style="margin-top:.35rem;font-size:.8rem">No learning note added</div>') +
       '</td>' +
-      '<td class="num">' + fmt(e.mins) + (e.start && e.end ? '<br><span style="font-size:.72rem;color:var(--grey)">' + e.start + ' to ' + e.end + '</span>' : '') + '</td>' +
+      '<td class="num">' + fmt(e.mins) + (e.start && e.end ? '<br><span style="font-size:.72rem;color:var(--grey)">' + e.start + ' to ' + e.end + '</span>' : '') +
+        (e.timed ? '<br><span class="tag" style="background:var(--pale);color:var(--green);font-size:.66rem">timed live</span>' : '<br><span class="tag" style="background:#F4EEDD;color:#8a6a00;font-size:.66rem">typed in</span>') + '</td>' +
       '<td class="num">' + fmt(run) + '</td>' +
       '<td>' + initA + '</td>' +
       '<td class="no-print">' +
@@ -2610,7 +2695,7 @@ function escapeHtml(s){
 
 /* ---------- init ---------- */
 document.getElementById('eType').innerHTML = TYPES.map(t => '<option>' + t + '</option>').join('');
-document.getElementById('eDate').value = new Date().toISOString().slice(0,10);
+document.getElementById('eDate').value = isoLocal(new Date());
 try { repairTaskWeeks(); } catch(e){ console.log('OTJ: task repair skipped', e && e.message); }
 render();
 showGate();
